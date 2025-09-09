@@ -20,7 +20,7 @@
 ![PyPI - Wheel](https://img.shields.io/pypi/wheel/container-manager-mcp)
 ![PyPI - Implementation](https://img.shields.io/pypi/implementation/container-manager-mcp)
 
-*Version: 0.0.3*
+*Version: 0.0.4*
 
 Container Manager MCP Server provides a robust interface to manage Docker and Podman containers, networks, volumes, and Docker Swarm services through a FastMCP server, enabling programmatic and remote container management.
 
@@ -154,11 +154,6 @@ curl -X POST http://127.0.0.1:8080/pull_image \
   -H "Content-Type: application/json" \
   -d '{"image": "nginx", "tag": "latest", "manager_type": "docker"}'
 ```
-
-</details>
-
-<details>
-  <summary><b>Installation Instructions:</b></summary>
 
 Install the Python package:
 
