@@ -95,8 +95,8 @@ Configure `mcp.json`
         "container-manager-mcp"
       ],
       "env": {
-        "SILENT": "False",
-        "LOG_FILE": "~/Documents/container_manager_mcp.log"
+        "SILENT": "False",                                  //Optional
+        "LOG_FILE": "~/Documents/container_manager_mcp.log" //Optional
       },
       "timeout": 200000
     }
