@@ -1,13 +1,24 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from container_manager.container_manager import main, ContainerManagerBase, DockerManager, PodmanManager
+from container_manager.container_manager import (
+    main,
+    ContainerManagerBase,
+    DockerManager,
+    PodmanManager,
+)
 from container_manager.container_manager_mcp import container_manager_mcp
 
 """
-system-manager
+container-manager
 
-Install/Update/Clean/Manage your System!
+Manage your containers using docker, podman, compose, or docker swarm!
 """
 
-__all__ = ["main", "container_manager_mcp", "ContainerManagerBase", "DockerManager", "PodmanManager"]
+__all__ = [
+    "main",
+    "container_manager_mcp",
+    "ContainerManagerBase",
+    "DockerManager",
+    "PodmanManager",
+]

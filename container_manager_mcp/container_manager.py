@@ -4,7 +4,6 @@
 import sys
 import logging
 import os
-import platform
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, Any
 import getopt
@@ -44,11 +43,11 @@ class ContainerManagerBase(ABC):
         self.logger.info(f"Logging initialized to {log_file}")
 
     def log_action(
-            self,
-            action: str,
-            params: Dict = None,
-            result: Any = None,
-            error: Exception = None,
+        self,
+        action: str,
+        params: Dict = None,
+        result: Any = None,
+        error: Exception = None,
     ):
         self.logger.info(f"Performing action: {action} with params: {params}")
         if result:
@@ -69,7 +68,9 @@ class ContainerManagerBase(ABC):
         pass
 
     @abstractmethod
-    def pull_image(self, image: str, tag: str = "latest", platform: Optional[str] = None) -> Dict:
+    def pull_image(
+        self, image: str, tag: str = "latest", platform: Optional[str] = None
+    ) -> Dict:
         pass
 
     @abstractmethod
@@ -82,14 +83,14 @@ class ContainerManagerBase(ABC):
 
     @abstractmethod
     def run_container(
-            self,
-            image: str,
-            name: Optional[str] = None,
-            command: Optional[str] = None,
-            detach: bool = False,
-            ports: Optional[Dict[str, str]] = None,
-            volumes: Optional[Dict[str, Dict]] = None,
-            environment: Optional[Dict[str, str]] = None,
+        self,
+        image: str,
+        name: Optional[str] = None,
+        command: Optional[str] = None,
+        detach: bool = False,
+        ports: Optional[Dict[str, str]] = None,
+        volumes: Optional[Dict[str, Dict]] = None,
+        environment: Optional[Dict[str, str]] = None,
     ) -> Dict:
         pass
 
@@ -107,7 +108,7 @@ class ContainerManagerBase(ABC):
 
     @abstractmethod
     def exec_in_container(
-            self, container_id: str, command: List[str], detach: bool = False
+        self, container_id: str, command: List[str], detach: bool = False
     ) -> Dict:
         pass
 
@@ -137,7 +138,9 @@ class ContainerManagerBase(ABC):
 
     # Compose methods
     @abstractmethod
-    def compose_up(self, compose_file: str, detach: bool = True, build: bool = False) -> str:
+    def compose_up(
+        self, compose_file: str, detach: bool = True, build: bool = False
+    ) -> str:
         pass
 
     @abstractmethod
@@ -166,12 +169,12 @@ class ContainerManagerBase(ABC):
         raise NotImplementedError("Swarm not supported")
 
     def create_service(
-            self,
-            name: str,
-            image: str,
-            replicas: int = 1,
-            ports: Optional[Dict[str, str]] = None,
-            mounts: Optional[List[str]] = None,
+        self,
+        name: str,
+        image: str,
+        replicas: int = 1,
+        ports: Optional[Dict[str, str]] = None,
+        mounts: Optional[List[str]] = None,
     ) -> Dict:
         raise NotImplementedError("Swarm not supported")
 
@@ -221,7 +224,9 @@ class DockerManager(ContainerManagerBase):
             self.log_action("list_images", params, error=e)
             raise RuntimeError(f"Failed to list images: {str(e)}")
 
-    def pull_image(self, image: str, tag: str = "latest", platform: Optional[str] = None) -> Dict:
+    def pull_image(
+        self, image: str, tag: str = "latest", platform: Optional[str] = None
+    ) -> Dict:
         params = {"image": image, "tag": tag, "platform": platform}
         try:
             img = self.client.images.pull(f"{image}:{tag}", platform=platform)
@@ -255,14 +260,14 @@ class DockerManager(ContainerManagerBase):
             raise RuntimeError(f"Failed to list containers: {str(e)}")
 
     def run_container(
-            self,
-            image: str,
-            name: Optional[str] = None,
-            command: Optional[str] = None,
-            detach: bool = False,
-            ports: Optional[Dict[str, str]] = None,
-            volumes: Optional[Dict[str, Dict]] = None,
-            environment: Optional[Dict[str, str]] = None,
+        self,
+        image: str,
+        name: Optional[str] = None,
+        command: Optional[str] = None,
+        detach: bool = False,
+        ports: Optional[Dict[str, str]] = None,
+        volumes: Optional[Dict[str, Dict]] = None,
+        environment: Optional[Dict[str, str]] = None,
     ) -> Dict:
         params = {
             "image": image,
@@ -283,7 +288,9 @@ class DockerManager(ContainerManagerBase):
                 volumes=volumes,
                 environment=environment,
             )
-            result = container.attrs if detach else {"output": container.decode("utf-8")}
+            result = (
+                container.attrs if detach else {"output": container.decode("utf-8")}
+            )
             self.log_action("run_container", params, result)
             return result
         except Exception as e:
@@ -326,13 +333,16 @@ class DockerManager(ContainerManagerBase):
             raise RuntimeError(f"Failed to get container logs: {str(e)}")
 
     def exec_in_container(
-            self, container_id: str, command: List[str], detach: bool = False
+        self, container_id: str, command: List[str], detach: bool = False
     ) -> Dict:
         params = {"container_id": container_id, "command": command, "detach": detach}
         try:
             container = self.client.containers.get(container_id)
             exit_code, output = container.exec_run(command, detach=detach)
-            result = {"exit_code": exit_code, "output": output.decode("utf-8") if output else None}
+            result = {
+                "exit_code": exit_code,
+                "output": output.decode("utf-8") if output else None,
+            }
             self.log_action("exec_in_container", params, result)
             return result
         except Exception as e:
@@ -407,14 +417,16 @@ class DockerManager(ContainerManagerBase):
             self.log_action("remove_network", params, error=e)
             raise RuntimeError(f"Failed to remove network: {str(e)}")
 
-    def compose_up(self, compose_file: str, detach: bool = True, build: bool = False) -> str:
+    def compose_up(
+        self, compose_file: str, detach: bool = True, build: bool = False
+    ) -> str:
         params = {"compose_file": compose_file, "detach": detach, "build": build}
         try:
-            cmd = ['docker', 'compose', '-f', compose_file, 'up']
+            cmd = ["docker", "compose", "-f", compose_file, "up"]
             if build:
-                cmd.append('--build')
+                cmd.append("--build")
             if detach:
-                cmd.append('-d')
+                cmd.append("-d")
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise RuntimeError(result.stderr)
@@ -427,7 +439,7 @@ class DockerManager(ContainerManagerBase):
     def compose_down(self, compose_file: str) -> str:
         params = {"compose_file": compose_file}
         try:
-            cmd = ['docker', 'compose', '-f', compose_file, 'down']
+            cmd = ["docker", "compose", "-f", compose_file, "down"]
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise RuntimeError(result.stderr)
@@ -440,7 +452,7 @@ class DockerManager(ContainerManagerBase):
     def compose_ps(self, compose_file: str) -> str:
         params = {"compose_file": compose_file}
         try:
-            cmd = ['docker', 'compose', '-f', compose_file, 'ps']
+            cmd = ["docker", "compose", "-f", compose_file, "ps"]
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise RuntimeError(result.stderr)
@@ -453,7 +465,7 @@ class DockerManager(ContainerManagerBase):
     def compose_logs(self, compose_file: str, service: Optional[str] = None) -> str:
         params = {"compose_file": compose_file, "service": service}
         try:
-            cmd = ['docker', 'compose', '-f', compose_file, 'logs']
+            cmd = ["docker", "compose", "-f", compose_file, "logs"]
             if service:
                 cmd.append(service)
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -510,14 +522,20 @@ class DockerManager(ContainerManagerBase):
             raise RuntimeError(f"Failed to list services: {str(e)}")
 
     def create_service(
-            self,
-            name: str,
-            image: str,
-            replicas: int = 1,
-            ports: Optional[Dict[str, str]] = None,
-            mounts: Optional[List[str]] = None,
+        self,
+        name: str,
+        image: str,
+        replicas: int = 1,
+        ports: Optional[Dict[str, str]] = None,
+        mounts: Optional[List[str]] = None,
     ) -> Dict:
-        params = {"name": name, "image": image, "replicas": replicas, "ports": ports, "mounts": mounts}
+        params = {
+            "name": name,
+            "image": image,
+            "replicas": replicas,
+            "ports": ports,
+            "mounts": mounts,
+        }
         try:
             mode = {"mode": "replicated", "replicas": replicas}
             target_ports = [docker.types.EndpointSpec(ports=ports)] if ports else None
@@ -590,7 +608,9 @@ class PodmanManager(ContainerManagerBase):
             self.log_action("list_images", params, error=e)
             raise RuntimeError(f"Failed to list images: {str(e)}")
 
-    def pull_image(self, image: str, tag: str = "latest", platform: Optional[str] = None) -> Dict:
+    def pull_image(
+        self, image: str, tag: str = "latest", platform: Optional[str] = None
+    ) -> Dict:
         params = {"image": image, "tag": tag, "platform": platform}
         try:
             img = self.client.images.pull(f"{image}:{tag}", platform=platform)
@@ -624,14 +644,14 @@ class PodmanManager(ContainerManagerBase):
             raise RuntimeError(f"Failed to list containers: {str(e)}")
 
     def run_container(
-            self,
-            image: str,
-            name: Optional[str] = None,
-            command: Optional[str] = None,
-            detach: bool = False,
-            ports: Optional[Dict[str, str]] = None,
-            volumes: Optional[Dict[str, Dict]] = None,
-            environment: Optional[Dict[str, str]] = None,
+        self,
+        image: str,
+        name: Optional[str] = None,
+        command: Optional[str] = None,
+        detach: bool = False,
+        ports: Optional[Dict[str, str]] = None,
+        volumes: Optional[Dict[str, Dict]] = None,
+        environment: Optional[Dict[str, str]] = None,
     ) -> Dict:
         params = {
             "image": image,
@@ -652,7 +672,9 @@ class PodmanManager(ContainerManagerBase):
                 volumes=volumes,
                 environment=environment,
             )
-            result = container.attrs if detach else {"output": container.decode("utf-8")}
+            result = (
+                container.attrs if detach else {"output": container.decode("utf-8")}
+            )
             self.log_action("run_container", params, result)
             return result
         except Exception as e:
@@ -695,13 +717,16 @@ class PodmanManager(ContainerManagerBase):
             raise RuntimeError(f"Failed to get container logs: {str(e)}")
 
     def exec_in_container(
-            self, container_id: str, command: List[str], detach: bool = False
+        self, container_id: str, command: List[str], detach: bool = False
     ) -> Dict:
         params = {"container_id": container_id, "command": command, "detach": detach}
         try:
             container = self.client.containers.get(container_id)
             exit_code, output = container.exec_run(command, detach=detach)
-            result = {"exit_code": exit_code, "output": output.decode("utf-8") if output else None}
+            result = {
+                "exit_code": exit_code,
+                "output": output.decode("utf-8") if output else None,
+            }
             self.log_action("exec_in_container", params, result)
             return result
         except Exception as e:
@@ -776,14 +801,16 @@ class PodmanManager(ContainerManagerBase):
             self.log_action("remove_network", params, error=e)
             raise RuntimeError(f"Failed to remove network: {str(e)}")
 
-    def compose_up(self, compose_file: str, detach: bool = True, build: bool = False) -> str:
+    def compose_up(
+        self, compose_file: str, detach: bool = True, build: bool = False
+    ) -> str:
         params = {"compose_file": compose_file, "detach": detach, "build": build}
         try:
-            cmd = ['podman-compose', '-f', compose_file, 'up']
+            cmd = ["podman-compose", "-f", compose_file, "up"]
             if build:
-                cmd.append('--build')
+                cmd.append("--build")
             if detach:
-                cmd.append('-d')
+                cmd.append("-d")
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise RuntimeError(result.stderr)
@@ -796,7 +823,7 @@ class PodmanManager(ContainerManagerBase):
     def compose_down(self, compose_file: str) -> str:
         params = {"compose_file": compose_file}
         try:
-            cmd = ['podman-compose', '-f', compose_file, 'down']
+            cmd = ["podman-compose", "-f", compose_file, "down"]
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise RuntimeError(result.stderr)
@@ -809,7 +836,7 @@ class PodmanManager(ContainerManagerBase):
     def compose_ps(self, compose_file: str) -> str:
         params = {"compose_file": compose_file}
         try:
-            cmd = ['podman-compose', '-f', compose_file, 'ps']
+            cmd = ["podman-compose", "-f", compose_file, "ps"]
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise RuntimeError(result.stderr)
@@ -822,7 +849,7 @@ class PodmanManager(ContainerManagerBase):
     def compose_logs(self, compose_file: str, service: Optional[str] = None) -> str:
         params = {"compose_file": compose_file, "service": service}
         try:
-            cmd = ['podman-compose', '-f', compose_file, 'logs']
+            cmd = ["podman-compose", "-f", compose_file, "logs"]
             if service:
                 cmd.append(service)
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -836,7 +863,7 @@ class PodmanManager(ContainerManagerBase):
 
 
 def create_manager(
-        manager_type: str, silent: bool = False, log_file: str = None
+    manager_type: str, silent: bool = False, log_file: str = None
 ) -> ContainerManagerBase:
     if manager_type.lower() == "docker" or manager_type.lower() == "swarm":
         return DockerManager(silent=silent, log_file=log_file)
@@ -1221,7 +1248,14 @@ def main(argv):
         env = None
         if environment_str:
             env = dict(e.split("=") for e in environment_str.split(","))
-        print(json.dumps(manager.run_container(run_image, name, command, detach, ports, volumes, env), indent=2))
+        print(
+            json.dumps(
+                manager.run_container(
+                    run_image, name, command, detach, ports, volumes, env
+                ),
+                indent=2,
+            )
+        )
 
     if stop_container:
         if not stop_container_id:
@@ -1231,7 +1265,9 @@ def main(argv):
     if remove_container:
         if not remove_container_id:
             raise ValueError("Container ID required for remove-container")
-        print(json.dumps(manager.remove_container(remove_container_id, force), indent=2))
+        print(
+            json.dumps(manager.remove_container(remove_container_id, force), indent=2)
+        )
 
     if get_container_logs:
         if not container_logs_id:
@@ -1242,7 +1278,12 @@ def main(argv):
         if not exec_container_id:
             raise ValueError("Container ID required for exec-in-container")
         cmd_list = exec_command.split() if exec_command else []
-        print(json.dumps(manager.exec_in_container(exec_container_id, cmd_list, exec_detach), indent=2))
+        print(
+            json.dumps(
+                manager.exec_in_container(exec_container_id, cmd_list, exec_detach),
+                indent=2,
+            )
+        )
 
     if list_volumes:
         print(json.dumps(manager.list_volumes(), indent=2))
@@ -1316,7 +1357,14 @@ def main(argv):
         mounts = None
         if mounts_str:
             mounts = mounts_str.split(",")
-        print(json.dumps(manager.create_service(create_service_name, service_image, replicas, ports, mounts), indent=2))
+        print(
+            json.dumps(
+                manager.create_service(
+                    create_service_name, service_image, replicas, ports, mounts
+                ),
+                indent=2,
+            )
+        )
 
     if remove_service:
         if not remove_service_id:

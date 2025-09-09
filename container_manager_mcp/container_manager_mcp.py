@@ -11,7 +11,10 @@ from fastmcp import FastMCP, Context
 from pydantic import Field
 from container_manager import create_manager
 
-def setup_logging(is_mcp_server: bool = False, log_file: str = "container_manager_mcp.log"):
+
+def setup_logging(
+    is_mcp_server: bool = False, log_file: str = "container_manager_mcp.log"
+):
     logging.basicConfig(
         filename=log_file,
         level=logging.INFO,
@@ -20,7 +23,9 @@ def setup_logging(is_mcp_server: bool = False, log_file: str = "container_manage
     logger = logging.getLogger(__name__)
     logger.info(f"MCP server logging initialized to {log_file}")
 
+
 mcp = FastMCP(name="ContainerManagerServer")
+
 
 def to_boolean(string):
     normalized = str(string).strip().lower()
@@ -33,6 +38,7 @@ def to_boolean(string):
     else:
         raise ValueError(f"Cannot convert '{string}' to boolean")
 
+
 environment_silent = os.environ.get("SILENT", False)
 environment_log_file = os.environ.get("LOG_FILE", None)
 
@@ -40,6 +46,7 @@ if environment_silent:
     environment_silent = to_boolean(environment_silent)
 
 # Common tools
+
 
 @mcp.tool(
     annotations={
@@ -52,19 +59,30 @@ if environment_silent:
     tags={"container_management"},
 )
 async def get_version(
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Getting version for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Getting version for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.get_version()
     except Exception as e:
         logger.error(f"Failed to get version: {str(e)}")
         raise RuntimeError(f"Failed to get version: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -77,19 +95,30 @@ async def get_version(
     tags={"container_management"},
 )
 async def get_info(
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Getting info for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Getting info for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.get_info()
     except Exception as e:
         logger.error(f"Failed to get info: {str(e)}")
         raise RuntimeError(f"Failed to get info: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -102,19 +131,30 @@ async def get_info(
     tags={"container_management"},
 )
 async def list_images(
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> List[Dict]:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Listing images for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Listing images for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.list_images()
     except Exception as e:
         logger.error(f"Failed to list images: {str(e)}")
         raise RuntimeError(f"Failed to list images: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -127,22 +167,35 @@ async def list_images(
     tags={"container_management"},
 )
 async def pull_image(
-        image: str = Field(description="Image name to pull"),
-        tag: str = Field(description="Image tag", default="latest"),
-        platform: Optional[str] = Field(description="Platform (e.g., linux/amd64)", default=None),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    image: str = Field(description="Image name to pull"),
+    tag: str = Field(description="Image tag", default="latest"),
+    platform: Optional[str] = Field(
+        description="Platform (e.g., linux/amd64)", default=None
+    ),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Pulling image {image}:{tag} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Pulling image {image}:{tag} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.pull_image(image, tag, platform)
     except Exception as e:
         logger.error(f"Failed to pull image: {str(e)}")
         raise RuntimeError(f"Failed to pull image: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -155,21 +208,32 @@ async def pull_image(
     tags={"container_management"},
 )
 async def remove_image(
-        image: str = Field(description="Image name or ID to remove"),
-        force: bool = Field(description="Force removal", default=False),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    image: str = Field(description="Image name or ID to remove"),
+    force: bool = Field(description="Force removal", default=False),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Removing image {image} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Removing image {image} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.remove_image(image, force)
     except Exception as e:
         logger.error(f"Failed to remove image: {str(e)}")
         raise RuntimeError(f"Failed to remove image: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -182,20 +246,33 @@ async def remove_image(
     tags={"container_management"},
 )
 async def list_containers(
-        all: bool = Field(description="Show all containers (default running only)", default=False),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    all: bool = Field(
+        description="Show all containers (default running only)", default=False
+    ),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> List[Dict]:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Listing containers for {manager_type}, all: {all}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Listing containers for {manager_type}, all: {all}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.list_containers(all)
     except Exception as e:
         logger.error(f"Failed to list containers: {str(e)}")
         raise RuntimeError(f"Failed to list containers: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -208,26 +285,48 @@ async def list_containers(
     tags={"container_management"},
 )
 async def run_container(
-        image: str = Field(description="Image to run"),
-        name: Optional[str] = Field(description="Container name", default=None),
-        command: Optional[str] = Field(description="Command to run in container", default=None),
-        detach: bool = Field(description="Run in detached mode", default=False),
-        ports: Optional[Dict[str, str]] = Field(description="Port mappings {container_port: host_port}", default=None),
-        volumes: Optional[Dict[str, Dict]] = Field(description="Volume mappings {/host/path: {bind: /container/path, mode: rw}}", default=None),
-        environment: Optional[Dict[str, str]] = Field(description="Environment variables", default=None),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    image: str = Field(description="Image to run"),
+    name: Optional[str] = Field(description="Container name", default=None),
+    command: Optional[str] = Field(
+        description="Command to run in container", default=None
+    ),
+    detach: bool = Field(description="Run in detached mode", default=False),
+    ports: Optional[Dict[str, str]] = Field(
+        description="Port mappings {container_port: host_port}", default=None
+    ),
+    volumes: Optional[Dict[str, Dict]] = Field(
+        description="Volume mappings {/host/path: {bind: /container/path, mode: rw}}",
+        default=None,
+    ),
+    environment: Optional[Dict[str, str]] = Field(
+        description="Environment variables", default=None
+    ),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Running container from {image} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Running container from {image} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
-        return manager.run_container(image, name, command, detach, ports, volumes, environment)
+        return manager.run_container(
+            image, name, command, detach, ports, volumes, environment
+        )
     except Exception as e:
         logger.error(f"Failed to run container: {str(e)}")
         raise RuntimeError(f"Failed to run container: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -240,21 +339,32 @@ async def run_container(
     tags={"container_management"},
 )
 async def stop_container(
-        container_id: str = Field(description="Container ID or name"),
-        timeout: int = Field(description="Timeout in seconds", default=10),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    container_id: str = Field(description="Container ID or name"),
+    timeout: int = Field(description="Timeout in seconds", default=10),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Stopping container {container_id} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Stopping container {container_id} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.stop_container(container_id, timeout)
     except Exception as e:
         logger.error(f"Failed to stop container: {str(e)}")
         raise RuntimeError(f"Failed to stop container: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -267,21 +377,32 @@ async def stop_container(
     tags={"container_management"},
 )
 async def remove_container(
-        container_id: str = Field(description="Container ID or name"),
-        force: bool = Field(description="Force removal", default=False),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    container_id: str = Field(description="Container ID or name"),
+    force: bool = Field(description="Force removal", default=False),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Removing container {container_id} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Removing container {container_id} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.remove_container(container_id, force)
     except Exception as e:
         logger.error(f"Failed to remove container: {str(e)}")
         raise RuntimeError(f"Failed to remove container: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -294,21 +415,34 @@ async def remove_container(
     tags={"container_management"},
 )
 async def get_container_logs(
-        container_id: str = Field(description="Container ID or name"),
-        tail: str = Field(description="Number of lines to show from the end (or 'all')", default="all"),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    container_id: str = Field(description="Container ID or name"),
+    tail: str = Field(
+        description="Number of lines to show from the end (or 'all')", default="all"
+    ),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> str:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Getting logs for container {container_id} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Getting logs for container {container_id} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.get_container_logs(container_id, tail)
     except Exception as e:
         logger.error(f"Failed to get container logs: {str(e)}")
         raise RuntimeError(f"Failed to get container logs: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -321,22 +455,33 @@ async def get_container_logs(
     tags={"container_management"},
 )
 async def exec_in_container(
-        container_id: str = Field(description="Container ID or name"),
-        command: List[str] = Field(description="Command to execute"),
-        detach: bool = Field(description="Detach execution", default=False),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    container_id: str = Field(description="Container ID or name"),
+    command: List[str] = Field(description="Command to execute"),
+    detach: bool = Field(description="Detach execution", default=False),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Executing {command} in container {container_id} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Executing {command} in container {container_id} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.exec_in_container(container_id, command, detach)
     except Exception as e:
         logger.error(f"Failed to exec in container: {str(e)}")
         raise RuntimeError(f"Failed to exec in container: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -349,19 +494,30 @@ async def exec_in_container(
     tags={"container_management"},
 )
 async def list_volumes(
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Listing volumes for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Listing volumes for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.list_volumes()
     except Exception as e:
         logger.error(f"Failed to list volumes: {str(e)}")
         raise RuntimeError(f"Failed to list volumes: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -374,20 +530,31 @@ async def list_volumes(
     tags={"container_management"},
 )
 async def create_volume(
-        name: str = Field(description="Volume name"),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    name: str = Field(description="Volume name"),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Creating volume {name} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Creating volume {name} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.create_volume(name)
     except Exception as e:
         logger.error(f"Failed to create volume: {str(e)}")
         raise RuntimeError(f"Failed to create volume: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -400,21 +567,32 @@ async def create_volume(
     tags={"container_management"},
 )
 async def remove_volume(
-        name: str = Field(description="Volume name"),
-        force: bool = Field(description="Force removal", default=False),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    name: str = Field(description="Volume name"),
+    force: bool = Field(description="Force removal", default=False),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Removing volume {name} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Removing volume {name} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.remove_volume(name, force)
     except Exception as e:
         logger.error(f"Failed to remove volume: {str(e)}")
         raise RuntimeError(f"Failed to remove volume: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -427,19 +605,30 @@ async def remove_volume(
     tags={"container_management"},
 )
 async def list_networks(
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> List[Dict]:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Listing networks for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Listing networks for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.list_networks()
     except Exception as e:
         logger.error(f"Failed to list networks: {str(e)}")
         raise RuntimeError(f"Failed to list networks: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -452,21 +641,32 @@ async def list_networks(
     tags={"container_management"},
 )
 async def create_network(
-        name: str = Field(description="Network name"),
-        driver: str = Field(description="Network driver (e.g., bridge)", default="bridge"),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    name: str = Field(description="Network name"),
+    driver: str = Field(description="Network driver (e.g., bridge)", default="bridge"),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Creating network {name} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Creating network {name} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.create_network(name, driver)
     except Exception as e:
         logger.error(f"Failed to create network: {str(e)}")
         raise RuntimeError(f"Failed to create network: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -479,14 +679,24 @@ async def create_network(
     tags={"container_management"},
 )
 async def remove_network(
-        network_id: str = Field(description="Network ID or name"),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    network_id: str = Field(description="Network ID or name"),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Removing network {network_id} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Removing network {network_id} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.remove_network(network_id)
@@ -494,7 +704,9 @@ async def remove_network(
         logger.error(f"Failed to remove network: {str(e)}")
         raise RuntimeError(f"Failed to remove network: {str(e)}")
 
+
 # Swarm-specific tools
+
 
 @mcp.tool(
     annotations={
@@ -507,22 +719,33 @@ async def remove_network(
     tags={"container_management", "swarm"},
 )
 async def init_swarm(
-        advertise_addr: Optional[str] = Field(description="Advertise address", default=None),
-        manager_type: str = Field(description="Must be docker for swarm", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    advertise_addr: Optional[str] = Field(
+        description="Advertise address", default=None
+    ),
+    manager_type: str = Field(description="Must be docker for swarm", default="docker"),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     if manager_type != "docker":
         raise ValueError("Swarm operations are only supported on Docker")
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Initializing swarm for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Initializing swarm for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.init_swarm(advertise_addr)
     except Exception as e:
         logger.error(f"Failed to init swarm: {str(e)}")
         raise RuntimeError(f"Failed to init swarm: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -535,22 +758,31 @@ async def init_swarm(
     tags={"container_management", "swarm"},
 )
 async def leave_swarm(
-        force: bool = Field(description="Force leave", default=False),
-        manager_type: str = Field(description="Must be docker for swarm", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    force: bool = Field(description="Force leave", default=False),
+    manager_type: str = Field(description="Must be docker for swarm", default="docker"),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     if manager_type != "docker":
         raise ValueError("Swarm operations are only supported on Docker")
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Leaving swarm for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Leaving swarm for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.leave_swarm(force)
     except Exception as e:
         logger.error(f"Failed to leave swarm: {str(e)}")
         raise RuntimeError(f"Failed to leave swarm: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -563,21 +795,30 @@ async def leave_swarm(
     tags={"container_management", "swarm"},
 )
 async def list_nodes(
-        manager_type: str = Field(description="Must be docker for swarm", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    manager_type: str = Field(description="Must be docker for swarm", default="docker"),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> List[Dict]:
     if manager_type != "docker":
         raise ValueError("Swarm operations are only supported on Docker")
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Listing nodes for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Listing nodes for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.list_nodes()
     except Exception as e:
         logger.error(f"Failed to list nodes: {str(e)}")
         raise RuntimeError(f"Failed to list nodes: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -590,21 +831,30 @@ async def list_nodes(
     tags={"container_management", "swarm"},
 )
 async def list_services(
-        manager_type: str = Field(description="Must be docker for swarm", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    manager_type: str = Field(description="Must be docker for swarm", default="docker"),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> List[Dict]:
     if manager_type != "docker":
         raise ValueError("Swarm operations are only supported on Docker")
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Listing services for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Listing services for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.list_services()
     except Exception as e:
         logger.error(f"Failed to list services: {str(e)}")
         raise RuntimeError(f"Failed to list services: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -617,26 +867,39 @@ async def list_services(
     tags={"container_management", "swarm"},
 )
 async def create_service(
-        name: str = Field(description="Service name"),
-        image: str = Field(description="Image for the service"),
-        replicas: int = Field(description="Number of replicas", default=1),
-        ports: Optional[Dict[str, str]] = Field(description="Port mappings {target: published}", default=None),
-        mounts: Optional[List[str]] = Field(description="Mounts [source:target:mode]", default=None),
-        manager_type: str = Field(description="Must be docker for swarm", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    name: str = Field(description="Service name"),
+    image: str = Field(description="Image for the service"),
+    replicas: int = Field(description="Number of replicas", default=1),
+    ports: Optional[Dict[str, str]] = Field(
+        description="Port mappings {target: published}", default=None
+    ),
+    mounts: Optional[List[str]] = Field(
+        description="Mounts [source:target:mode]", default=None
+    ),
+    manager_type: str = Field(description="Must be docker for swarm", default="docker"),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     if manager_type != "docker":
         raise ValueError("Swarm operations are only supported on Docker")
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Creating service {name} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Creating service {name} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.create_service(name, image, replicas, ports, mounts)
     except Exception as e:
         logger.error(f"Failed to create service: {str(e)}")
         raise RuntimeError(f"Failed to create service: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -649,22 +912,31 @@ async def create_service(
     tags={"container_management", "swarm"},
 )
 async def remove_service(
-        service_id: str = Field(description="Service ID or name"),
-        manager_type: str = Field(description="Must be docker for swarm", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    service_id: str = Field(description="Service ID or name"),
+    manager_type: str = Field(description="Must be docker for swarm", default="docker"),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> Dict:
     if manager_type != "docker":
         raise ValueError("Swarm operations are only supported on Docker")
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Removing service {service_id} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Removing service {service_id} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.remove_service(service_id)
     except Exception as e:
         logger.error(f"Failed to remove service: {str(e)}")
         raise RuntimeError(f"Failed to remove service: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -677,22 +949,33 @@ async def remove_service(
     tags={"container_management", "compose"},
 )
 async def compose_up(
-        compose_file: str = Field(description="Path to compose file"),
-        detach: bool = Field(description="Detach mode", default=True),
-        build: bool = Field(description="Build images", default=False),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    compose_file: str = Field(description="Path to compose file"),
+    detach: bool = Field(description="Detach mode", default=True),
+    build: bool = Field(description="Build images", default=False),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> str:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Compose up {compose_file} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Compose up {compose_file} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.compose_up(compose_file, detach, build)
     except Exception as e:
         logger.error(f"Failed to compose up: {str(e)}")
         raise RuntimeError(f"Failed to compose up: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -705,20 +988,31 @@ async def compose_up(
     tags={"container_management", "compose"},
 )
 async def compose_down(
-        compose_file: str = Field(description="Path to compose file"),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    compose_file: str = Field(description="Path to compose file"),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> str:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Compose down {compose_file} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Compose down {compose_file} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.compose_down(compose_file)
     except Exception as e:
         logger.error(f"Failed to compose down: {str(e)}")
         raise RuntimeError(f"Failed to compose down: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -731,20 +1025,31 @@ async def compose_down(
     tags={"container_management", "compose"},
 )
 async def compose_ps(
-        compose_file: str = Field(description="Path to compose file"),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    compose_file: str = Field(description="Path to compose file"),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> str:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Compose ps {compose_file} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Compose ps {compose_file} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.compose_ps(compose_file)
     except Exception as e:
         logger.error(f"Failed to compose ps: {str(e)}")
         raise RuntimeError(f"Failed to compose ps: {str(e)}")
+
 
 @mcp.tool(
     annotations={
@@ -757,21 +1062,32 @@ async def compose_ps(
     tags={"container_management", "compose"},
 )
 async def compose_logs(
-        compose_file: str = Field(description="Path to compose file"),
-        service: Optional[str] = Field(description="Specific service", default=None),
-        manager_type: str = Field(description="Container manager: docker, podman", default="docker"),
-        silent: Optional[bool] = Field(description="Suppress output", default=environment_silent),
-        log_file: Optional[str] = Field(description="Path to log file", default=environment_log_file),
-        ctx: Context = Field(description="MCP context for progress reporting", default=None),
+    compose_file: str = Field(description="Path to compose file"),
+    service: Optional[str] = Field(description="Specific service", default=None),
+    manager_type: str = Field(
+        description="Container manager: docker, podman", default="docker"
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
 ) -> str:
     logger = logging.getLogger("ContainerManager")
-    logger.debug(f"Compose logs {compose_file} for {manager_type}, silent: {silent}, log_file: {log_file}")
+    logger.debug(
+        f"Compose logs {compose_file} for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
     try:
         manager = create_manager(manager_type, silent, log_file)
         return manager.compose_logs(compose_file, service)
     except Exception as e:
         logger.error(f"Failed to compose logs: {str(e)}")
         raise RuntimeError(f"Failed to compose logs: {str(e)}")
+
 
 def container_manager_mcp(argv):
     transport = "stdio"
@@ -812,6 +1128,7 @@ def container_manager_mcp(argv):
         logger = logging.getLogger("ContainerManager")
         logger.error("Transport not supported")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     container_manager_mcp(sys.argv[1:])
