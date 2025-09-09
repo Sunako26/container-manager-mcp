@@ -6,6 +6,6 @@ ENV HOST=${HOST}
 ENV PORT=${PORT}
 ENV PATH="/usr/local/bin:${PATH}"
 RUN pip install uv \
-    && uv pip install --system container-manager-mcp
+    && uv pip install --system container-manager-mcp[all]
 
 ENTRYPOINT exec container-manager-mcp --transport "http" --host "${HOST}" --port "${PORT}"
