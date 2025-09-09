@@ -1105,7 +1105,7 @@ def container_manager_mcp(argv):
         sys.exit(2)
     for opt, arg in opts:
         if opt in ("-h", "--help"):
-            sys.exit()
+            sys.exit(2)
         elif opt in ("-t", "--transport"):
             transport = arg
         elif opt in ("-h", "--host"):
@@ -1128,6 +1128,10 @@ def container_manager_mcp(argv):
         logger = logging.getLogger("ContainerManager")
         logger.error("Transport not supported")
         sys.exit(1)
+
+
+def main():
+    container_manager_mcp(sys.argv[1:])
 
 
 if __name__ == "__main__":

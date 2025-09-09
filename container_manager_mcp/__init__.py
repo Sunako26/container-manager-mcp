@@ -2,13 +2,13 @@
 # coding: utf-8
 
 from container_manager_mcp.container_manager import (
-    main,
+    container_manager,
     create_manager,
     ContainerManagerBase,
     DockerManager,
     PodmanManager,
 )
-from container_manager_mcp.container_manager_mcp import container_manager_mcp
+from container_manager_mcp.container_manager_mcp import main
 
 """
 container-manager
@@ -19,7 +19,7 @@ Manage your containers using docker, podman, compose, or docker swarm!
 __all__ = [
     "main",
     "create_manager",
-    "container_manager_mcp",
+    "container_manager",
     "ContainerManagerBase",
     "DockerManager",
     "PodmanManager",

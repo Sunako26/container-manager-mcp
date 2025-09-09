@@ -945,7 +945,7 @@ container_manager.py --manager docker --pull-image nginx --tag latest --list-con
     )
 
 
-def main(argv):
+def container_manager(argv):
     get_version = False
     get_info = False
     list_images = False
@@ -1378,4 +1378,4 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         usage()
         sys.exit(2)
-    main(sys.argv[1:])
+    container_manager(sys.argv[1:])

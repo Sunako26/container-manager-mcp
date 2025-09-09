@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # coding: utf-8
-from .repository_manager_mcp import main
+from container_manager_mcp.container_manager_mcp import main
 
 if __name__ == "__main__":
     main()
