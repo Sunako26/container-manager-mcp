@@ -3,6 +3,7 @@
 
 from container_manager.container_manager import (
     main,
+    create_manager,
     ContainerManagerBase,
     DockerManager,
     PodmanManager,
@@ -17,6 +18,7 @@ Manage your containers using docker, podman, compose, or docker swarm!
 
 __all__ = [
     "main",
+    "create_manager",
     "container_manager_mcp",
     "ContainerManagerBase",
     "DockerManager",
