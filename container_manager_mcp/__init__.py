@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from container_manager.container_manager import (
+from container_manager_mcp.container_manager import (
     main,
     create_manager,
     ContainerManagerBase,
     DockerManager,
     PodmanManager,
 )
-from container_manager.container_manager_mcp import container_manager_mcp
+from container_manager_mcp.container_manager_mcp import container_manager_mcp
 
 """
 container-manager

@@ -9,7 +9,7 @@ from typing import Optional, List, Dict
 
 from fastmcp import FastMCP, Context
 from pydantic import Field
-from container_manager.container_manager import create_manager
+from container_manager_mcp.container_manager import create_manager
 
 
 def setup_logging(
