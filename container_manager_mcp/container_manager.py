@@ -9,7 +9,8 @@ from typing import List, Dict, Optional, Any
 import getopt
 import json
 import subprocess
-from datetime import datetime  # Added for consistent timestamp formatting
+from datetime import datetime
+import dateutil.parser
 
 try:
     import docker
@@ -27,6 +28,7 @@ except ImportError:
 
 
 class ContainerManagerBase(ABC):
+
     def __init__(self, silent: bool = False, log_file: str = None):
         self.silent = silent
         self.setup_logging(log_file)
@@ -65,6 +67,20 @@ class ContainerManagerBase(ABC):
                 )
             size_bytes /= 1024.0
         return f"{size_bytes:.2f}PB"
+
+    def _parse_timestamp(self, timestamp: Any) -> str:
+        """Parse timestamp (integer or string) to ISO 8601 string."""
+        if not timestamp:
+            return "unknown"
+        if isinstance(timestamp, (int, float)):
+            return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%dT%H:%M:%S")
+        if isinstance(timestamp, str):
+            try:
+                parsed = dateutil.parser.isoparse(timestamp)
+                return parsed.strftime("%Y-%m-%dT%H:%M:%S")
+            except ValueError:
+                return "unknown"
+        return "unknown"
 
     @abstractmethod
     def get_version(self) -> Dict:
@@ -208,42 +224,6 @@ class DockerManager(ContainerManagerBase):
             self.logger.error(f"Failed to connect to Docker daemon: {str(e)}")
             raise RuntimeError(f"Failed to connect to Docker: {str(e)}")
 
-    def get_version(self) -> Dict:
-        params = {}
-        try:
-            version = self.client.version()
-            result = {
-                "version": version.get("Version", "unknown"),
-                "api_version": version.get("ApiVersion", "unknown"),
-                "os": version.get("Os", "unknown"),
-                "arch": version.get("Arch", "unknown"),
-                "build_time": version.get("BuildTime", "unknown"),
-            }
-            self.log_action("get_version", params, result)
-            return result
-        except Exception as e:
-            self.log_action("get_version", params, error=e)
-            raise RuntimeError(f"Failed to get version: {str(e)}")
-
-    def get_info(self) -> Dict:
-        params = {}
-        try:
-            info = self.client.info()
-            result = {
-                "containers_total": info.get("Containers", 0),
-                "containers_running": info.get("ContainersRunning", 0),
-                "images": info.get("Images", 0),
-                "driver": info.get("Driver", "unknown"),
-                "platform": f"{info.get('OperatingSystem', 'unknown')} {info.get('Architecture', 'unknown')}",
-                "memory_total": self._format_size(info.get("MemTotal", 0)),
-                "swap_total": self._format_size(info.get("SwapTotal", 0)),
-            }
-            self.log_action("get_info", params, result)
-            return result
-        except Exception as e:
-            self.log_action("get_info", params, error=e)
-            raise RuntimeError(f"Failed to get info: {str(e)}")
-
     def list_images(self) -> List[Dict]:
         params = {}
         try:
@@ -257,12 +237,8 @@ class DockerManager(ContainerManagerBase):
                     repo_tag.rsplit(":", 1) if ":" in repo_tag else ("<none>", "<none>")
                 )
 
-                created = attrs.get("Created", 0)
-                created_str = (
-                    datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
-                    if created
-                    else "unknown"
-                )
+                created = attrs.get("Created", None)
+                created_str = self._parse_timestamp(created)
 
                 size_bytes = attrs.get("Size", 0)
                 size_str = self._format_size(size_bytes) if size_bytes else "0B"
@@ -298,12 +274,8 @@ class DockerManager(ContainerManagerBase):
             repository, tag = (
                 repo_tag.rsplit(":", 1) if ":" in repo_tag else (image, tag)
             )
-            created = attrs.get("Created", 0)
-            created_str = (
-                datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
-                if created
-                else "unknown"
-            )
+            created = attrs.get("Created", None)
+            created_str = self._parse_timestamp(created)
             size_bytes = attrs.get("Size", 0)
             size_str = self._format_size(size_bytes) if size_bytes else "0B"
             result = {
@@ -321,17 +293,6 @@ class DockerManager(ContainerManagerBase):
             self.log_action("pull_image", params, error=e)
             raise RuntimeError(f"Failed to pull image: {str(e)}")
 
-    def remove_image(self, image: str, force: bool = False) -> Dict:
-        params = {"image": image, "force": force}
-        try:
-            self.client.images.remove(image, force=force)
-            result = {"removed": image}
-            self.log_action("remove_image", params, result)
-            return result
-        except Exception as e:
-            self.log_action("remove_image", params, error=e)
-            raise RuntimeError(f"Failed to remove image: {str(e)}")
-
     def list_containers(self, all: bool = False) -> List[Dict]:
         params = {"all": all}
         try:
@@ -347,12 +308,8 @@ class DockerManager(ContainerManagerBase):
                             port_mappings.append(
                                 f"{hp.get('HostIp', '0.0.0.0')}:{hp.get('HostPort')}->{container_port}"
                             )
-                created = attrs.get("Created", 0)
-                created_str = (
-                    datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
-                    if created
-                    else "unknown"
-                )
+                created = attrs.get("Created", None)
+                created_str = self._parse_timestamp(created)
                 simplified = {
                     "id": attrs.get("Id", "unknown")[7:19],
                     "image": attrs.get("Config", {}).get("Image", "unknown"),
@@ -410,12 +367,8 @@ class DockerManager(ContainerManagerBase):
                         port_mappings.append(
                             f"{hp.get('HostIp', '0.0.0.0')}:{hp.get('HostPort')}->{container_port}"
                         )
-            created = attrs.get("Created", 0)
-            created_str = (
-                datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
-                if created
-                else "unknown"
-            )
+            created = attrs.get("Created", None)
+            created_str = self._parse_timestamp(created)
             result = {
                 "id": attrs.get("Id", "unknown")[7:19],
                 "image": attrs.get("Config", {}).get("Image", image),
@@ -429,6 +382,98 @@ class DockerManager(ContainerManagerBase):
         except Exception as e:
             self.log_action("run_container", params, error=e)
             raise RuntimeError(f"Failed to run container: {str(e)}")
+
+    def list_networks(self) -> List[Dict]:
+        params = {}
+        try:
+            networks = self.client.networks.list()
+            result = []
+            for net in networks:
+                attrs = net.attrs
+                containers = len(attrs.get("Containers", {}))
+                created = attrs.get("Created", None)
+                created_str = self._parse_timestamp(created)
+                simplified = {
+                    "id": attrs.get("Id", "unknown")[7:19],
+                    "name": attrs.get("Name", "unknown"),
+                    "driver": attrs.get("Driver", "unknown"),
+                    "scope": attrs.get("Scope", "unknown"),
+                    "containers": containers,
+                    "created": created_str,
+                }
+                result.append(simplified)
+            self.log_action("list_networks", params, result)
+            return result
+        except Exception as e:
+            self.log_action("list_networks", params, error=e)
+            raise RuntimeError(f"Failed to list networks: {str(e)}")
+
+    def create_network(self, name: str, driver: str = "bridge") -> Dict:
+        params = {"name": name, "driver": driver}
+        try:
+            network = self.client.networks.create(name, driver=driver)
+            attrs = network.attrs
+            created = attrs.get("Created", None)
+            created_str = self._parse_timestamp(created)
+            result = {
+                "id": attrs.get("Id", "unknown")[7:19],
+                "name": attrs.get("Name", name),
+                "driver": attrs.get("Driver", driver),
+                "scope": attrs.get("Scope", "unknown"),
+                "created": created_str,
+            }
+            self.log_action("create_network", params, result)
+            return result
+        except Exception as e:
+            self.log_action("create_network", params, error=e)
+            raise RuntimeError(f"Failed to create network: {str(e)}")
+
+    def get_version(self) -> Dict:
+        params = {}
+        try:
+            version = self.client.version()
+            result = {
+                "version": version.get("Version", "unknown"),
+                "api_version": version.get("ApiVersion", "unknown"),
+                "os": version.get("Os", "unknown"),
+                "arch": version.get("Arch", "unknown"),
+                "build_time": version.get("BuildTime", "unknown"),
+            }
+            self.log_action("get_version", params, result)
+            return result
+        except Exception as e:
+            self.log_action("get_version", params, error=e)
+            raise RuntimeError(f"Failed to get version: {str(e)}")
+
+    def get_info(self) -> Dict:
+        params = {}
+        try:
+            info = self.client.info()
+            result = {
+                "containers_total": info.get("Containers", 0),
+                "containers_running": info.get("ContainersRunning", 0),
+                "images": info.get("Images", 0),
+                "driver": info.get("Driver", "unknown"),
+                "platform": f"{info.get('OperatingSystem', 'unknown')} {info.get('Architecture', 'unknown')}",
+                "memory_total": self._format_size(info.get("MemTotal", 0)),
+                "swap_total": self._format_size(info.get("SwapTotal", 0)),
+            }
+            self.log_action("get_info", params, result)
+            return result
+        except Exception as e:
+            self.log_action("get_info", params, error=e)
+            raise RuntimeError(f"Failed to get info: {str(e)}")
+
+    def remove_image(self, image: str, force: bool = False) -> Dict:
+        params = {"image": image, "force": force}
+        try:
+            self.client.images.remove(image, force=force)
+            result = {"removed": image}
+            self.log_action("remove_image", params, result)
+            return result
+        except Exception as e:
+            self.log_action("remove_image", params, error=e)
+            raise RuntimeError(f"Failed to remove image: {str(e)}")
 
     def stop_container(self, container_id: str, timeout: int = 10) -> Dict:
         params = {"container_id": container_id, "timeout": timeout}
@@ -534,65 +579,6 @@ class DockerManager(ContainerManagerBase):
         except Exception as e:
             self.log_action("remove_volume", params, error=e)
             raise RuntimeError(f"Failed to remove volume: {str(e)}")
-
-    def list_networks(self) -> List[Dict]:
-        params = {}
-        try:
-            networks = self.client.networks.list()
-            result = []
-            for net in networks:
-                attrs = net.attrs
-                containers = len(attrs.get("Containers", {}))
-                created = attrs.get("Created", "unknown")
-                if isinstance(created, str):
-                    created_str = created
-                else:
-                    created_str = (
-                        datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
-                        if created
-                        else "unknown"
-                    )
-                simplified = {
-                    "id": attrs.get("Id", "unknown")[7:19],
-                    "name": attrs.get("Name", "unknown"),
-                    "driver": attrs.get("Driver", "unknown"),
-                    "scope": attrs.get("Scope", "unknown"),
-                    "containers": containers,
-                    "created": created_str,
-                }
-                result.append(simplified)
-            self.log_action("list_networks", params, result)
-            return result
-        except Exception as e:
-            self.log_action("list_networks", params, error=e)
-            raise RuntimeError(f"Failed to list networks: {str(e)}")
-
-    def create_network(self, name: str, driver: str = "bridge") -> Dict:
-        params = {"name": name, "driver": driver}
-        try:
-            network = self.client.networks.create(name, driver=driver)
-            attrs = network.attrs
-            created = attrs.get("Created", "unknown")
-            if isinstance(created, str):
-                created_str = created
-            else:
-                created_str = (
-                    datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
-                    if created
-                    else "unknown"
-                )
-            result = {
-                "id": attrs.get("Id", "unknown")[7:19],
-                "name": attrs.get("Name", name),
-                "driver": attrs.get("Driver", driver),
-                "scope": attrs.get("Scope", "unknown"),
-                "created": created_str,
-            }
-            self.log_action("create_network", params, result)
-            return result
-        except Exception as e:
-            self.log_action("create_network", params, error=e)
-            raise RuntimeError(f"Failed to create network: {str(e)}")
 
     def remove_network(self, network_id: str) -> Dict:
         params = {"network_id": network_id}
@@ -839,43 +825,6 @@ class PodmanManager(ContainerManagerBase):
             self.logger.error(f"Failed to connect to Podman daemon: {str(e)}")
             raise RuntimeError(f"Failed to connect to Podman: {str(e)}")
 
-    def get_version(self) -> Dict:
-        params = {}
-        try:
-            version = self.client.version()
-            result = {
-                "version": version.get("Version", "unknown"),
-                "api_version": version.get("APIVersion", "unknown"),
-                "os": version.get("Os", "unknown"),
-                "arch": version.get("Arch", "unknown"),
-                "build_time": version.get("BuildTime", "unknown"),
-            }
-            self.log_action("get_version", params, result)
-            return result
-        except Exception as e:
-            self.log_action("get_version", params, error=e)
-            raise RuntimeError(f"Failed to get version: {str(e)}")
-
-    def get_info(self) -> Dict:
-        params = {}
-        try:
-            info = self.client.info()
-            host = info.get("host", {})
-            result = {
-                "containers_total": info.get("store", {}).get("containers", 0),
-                "containers_running": host.get("runningContainers", 0),
-                "images": info.get("store", {}).get("images", 0),
-                "driver": host.get("graphDriverName", "unknown"),
-                "platform": f"{host.get('os', 'unknown')} {host.get('arch', 'unknown')}",
-                "memory_total": self._format_size(host.get("memTotal", 0)),
-                "swap_total": self._format_size(host.get("swapTotal", 0)),
-            }
-            self.log_action("get_info", params, result)
-            return result
-        except Exception as e:
-            self.log_action("get_info", params, error=e)
-            raise RuntimeError(f"Failed to get info: {str(e)}")
-
     def list_images(self) -> List[Dict]:
         params = {}
         try:
@@ -888,12 +837,8 @@ class PodmanManager(ContainerManagerBase):
                 repository, tag = (
                     repo_tag.rsplit(":", 1) if ":" in repo_tag else ("<none>", "<none>")
                 )
-                created = attrs.get("Created", 0)
-                created_str = (
-                    datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
-                    if created
-                    else "unknown"
-                )
+                created = attrs.get("Created", None)
+                created_str = self._parse_timestamp(created)
                 size_bytes = attrs.get("Size", 0)
                 size_str = self._format_size(size_bytes) if size_bytes else "0B"
                 simplified = {
@@ -926,12 +871,8 @@ class PodmanManager(ContainerManagerBase):
             repository, tag = (
                 repo_tag.rsplit(":", 1) if ":" in repo_tag else (image, tag)
             )
-            created = attrs.get("Created", 0)
-            created_str = (
-                datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
-                if created
-                else "unknown"
-            )
+            created = attrs.get("Created", None)
+            created_str = self._parse_timestamp(created)
             size_bytes = attrs.get("Size", 0)
             size_str = self._format_size(size_bytes) if size_bytes else "0B"
             result = {
@@ -949,17 +890,6 @@ class PodmanManager(ContainerManagerBase):
             self.log_action("pull_image", params, error=e)
             raise RuntimeError(f"Failed to pull image: {str(e)}")
 
-    def remove_image(self, image: str, force: bool = False) -> Dict:
-        params = {"image": image, "force": force}
-        try:
-            self.client.images.remove(image, force=force)
-            result = {"removed": image}
-            self.log_action("remove_image", params, result)
-            return result
-        except Exception as e:
-            self.log_action("remove_image", params, error=e)
-            raise RuntimeError(f"Failed to remove image: {str(e)}")
-
     def list_containers(self, all: bool = False) -> List[Dict]:
         params = {"all": all}
         try:
@@ -973,12 +903,8 @@ class PodmanManager(ContainerManagerBase):
                     for p in ports
                     if p.get("host_port")
                 ]
-                created = attrs.get("Created", 0)
-                created_str = (
-                    datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
-                    if created
-                    else "unknown"
-                )
+                created = attrs.get("Created", None)
+                created_str = self._parse_timestamp(created)
                 simplified = {
                     "id": attrs.get("Id", "unknown")[7:19],
                     "image": attrs.get("Image", "unknown"),
@@ -1034,12 +960,8 @@ class PodmanManager(ContainerManagerBase):
                 for p in ports
                 if p.get("host_port")
             ]
-            created = attrs.get("Created", 0)
-            created_str = (
-                datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
-                if created
-                else "unknown"
-            )
+            created = attrs.get("Created", None)
+            created_str = self._parse_timestamp(created)
             result = {
                 "id": attrs.get("Id", "unknown")[7:19],
                 "image": attrs.get("Image", image),
@@ -1053,6 +975,99 @@ class PodmanManager(ContainerManagerBase):
         except Exception as e:
             self.log_action("run_container", params, error=e)
             raise RuntimeError(f"Failed to run container: {str(e)}")
+
+    def list_networks(self) -> List[Dict]:
+        params = {}
+        try:
+            networks = self.client.networks.list()
+            result = []
+            for net in networks:
+                attrs = net.attrs
+                containers = len(attrs.get("Containers", {}))
+                created = attrs.get("Created", None)
+                created_str = self._parse_timestamp(created)
+                simplified = {
+                    "id": attrs.get("Id", "unknown")[7:19],
+                    "name": attrs.get("Name", "unknown"),
+                    "driver": attrs.get("Driver", "unknown"),
+                    "scope": attrs.get("Scope", "unknown"),
+                    "containers": containers,
+                    "created": created_str,
+                }
+                result.append(simplified)
+            self.log_action("list_networks", params, result)
+            return result
+        except Exception as e:
+            self.log_action("list_networks", params, error=e)
+            raise RuntimeError(f"Failed to list networks: {str(e)}")
+
+    def create_network(self, name: str, driver: str = "bridge") -> Dict:
+        params = {"name": name, "driver": driver}
+        try:
+            network = self.client.networks.create(name, driver=driver)
+            attrs = network.attrs
+            created = attrs.get("Created", None)
+            created_str = self._parse_timestamp(created)
+            result = {
+                "id": attrs.get("Id", "unknown")[7:19],
+                "name": attrs.get("Name", name),
+                "driver": attrs.get("Driver", driver),
+                "scope": attrs.get("Scope", "unknown"),
+                "created": created_str,
+            }
+            self.log_action("create_network", params, result)
+            return result
+        except Exception as e:
+            self.log_action("create_network", params, error=e)
+            raise RuntimeError(f"Failed to create network: {str(e)}")
+
+    def get_version(self) -> Dict:
+        params = {}
+        try:
+            version = self.client.version()
+            result = {
+                "version": version.get("Version", "unknown"),
+                "api_version": version.get("APIVersion", "unknown"),
+                "os": version.get("Os", "unknown"),
+                "arch": version.get("Arch", "unknown"),
+                "build_time": version.get("BuildTime", "unknown"),
+            }
+            self.log_action("get_version", params, result)
+            return result
+        except Exception as e:
+            self.log_action("get_version", params, error=e)
+            raise RuntimeError(f"Failed to get version: {str(e)}")
+
+    def get_info(self) -> Dict:
+        params = {}
+        try:
+            info = self.client.info()
+            host = info.get("host", {})
+            result = {
+                "containers_total": info.get("store", {}).get("containers", 0),
+                "containers_running": host.get("runningContainers", 0),
+                "images": info.get("store", {}).get("images", 0),
+                "driver": host.get("graphDriverName", "unknown"),
+                "platform": f"{host.get('os', 'unknown')} {host.get('arch', 'unknown')}",
+                "memory_total": self._format_size(host.get("memTotal", 0)),
+                "swap_total": self._format_size(host.get("swapTotal", 0)),
+            }
+            self.log_action("get_info", params, result)
+            return result
+        except Exception as e:
+            self.log_action("get_info", params, error=e)
+            raise RuntimeError(f"Failed to get info: {str(e)}")
+
+    def remove_image(self, image: str, force: bool = False) -> Dict:
+        params = {"image": image, "force": force}
+        try:
+            self.client.images.remove(image, force=force)
+            result = {"removed": image}
+            self.log_action("remove_image", params, result)
+            return result
+        except Exception as e:
+            self.log_action("remove_image", params, error=e)
+            raise RuntimeError(f"Failed to remove image: {str(e)}")
 
     def stop_container(self, container_id: str, timeout: int = 10) -> Dict:
         params = {"container_id": container_id, "timeout": timeout}
@@ -1158,65 +1173,6 @@ class PodmanManager(ContainerManagerBase):
         except Exception as e:
             self.log_action("remove_volume", params, error=e)
             raise RuntimeError(f"Failed to remove volume: {str(e)}")
-
-    def list_networks(self) -> List[Dict]:
-        params = {}
-        try:
-            networks = self.client.networks.list()
-            result = []
-            for net in networks:
-                attrs = net.attrs
-                containers = len(attrs.get("Containers", {}))
-                created = attrs.get("Created", "unknown")
-                if isinstance(created, str):
-                    created_str = created
-                else:
-                    created_str = (
-                        datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
-                        if created
-                        else "unknown"
-                    )
-                simplified = {
-                    "id": attrs.get("Id", "unknown")[7:19],
-                    "name": attrs.get("Name", "unknown"),
-                    "driver": attrs.get("Driver", "unknown"),
-                    "scope": attrs.get("Scope", "unknown"),
-                    "containers": containers,
-                    "created": created_str,
-                }
-                result.append(simplified)
-            self.log_action("list_networks", params, result)
-            return result
-        except Exception as e:
-            self.log_action("list_networks", params, error=e)
-            raise RuntimeError(f"Failed to list networks: {str(e)}")
-
-    def create_network(self, name: str, driver: str = "bridge") -> Dict:
-        params = {"name": name, "driver": driver}
-        try:
-            network = self.client.networks.create(name, driver=driver)
-            attrs = network.attrs
-            created = attrs.get("Created", "unknown")
-            if isinstance(created, str):
-                created_str = created
-            else:
-                created_str = (
-                    datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
-                    if created
-                    else "unknown"
-                )
-            result = {
-                "id": attrs.get("Id", "unknown")[7:19],
-                "name": attrs.get("Name", name),
-                "driver": attrs.get("Driver", driver),
-                "scope": attrs.get("Scope", "unknown"),
-                "created": created_str,
-            }
-            self.log_action("create_network", params, result)
-            return result
-        except Exception as e:
-            self.log_action("create_network", params, error=e)
-            raise RuntimeError(f"Failed to create network: {str(e)}")
 
     def remove_network(self, network_id: str) -> Dict:
         params = {"network_id": network_id}
