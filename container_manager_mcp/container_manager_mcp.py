@@ -1129,14 +1129,14 @@ async def compose_logs(
         raise RuntimeError(f"Failed to compose logs: {str(e)}")
 
 
-def container_manager_mcp(argv):
+def container_manager_mcp():
     parser = argparse.ArgumentParser(description="Container Manager MCP Server")
     parser.add_argument(
         "-t", "--transport", type=str, default="stdio", help="Transport (stdio/http)"
     )
     parser.add_argument("-h", "--host", type=str, default="0.0.0.0", help="Host")
     parser.add_argument("-p", "--port", type=int, default=8000, help="Port")
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
 
     transport = args.transport
     host = args.host
@@ -1156,5 +1156,9 @@ def container_manager_mcp(argv):
         sys.exit(1)
 
 
+def main():
+    container_manager_mcp()
+
+
 if __name__ == "__main__":
-    container_manager_mcp(sys.argv[1:])
+    container_manager_mcp()
