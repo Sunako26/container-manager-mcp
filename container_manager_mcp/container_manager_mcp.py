@@ -243,6 +243,44 @@ async def remove_image(
 
 @mcp.tool(
     annotations={
+        "title": "Prune Images",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    },
+    tags={"container_management"},
+)
+async def prune_images(
+    all: bool = Field(description="Prune all unused images", default=False),
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
+) -> Dict:
+    logger = logging.getLogger("ContainerManager")
+    logger.debug(
+        f"Pruning images for {manager_type}, all: {all}, silent: {silent}, log_file: {log_file}"
+    )
+    try:
+        manager = create_manager(manager_type, silent, log_file)
+        return manager.prune_images(all=all)
+    except Exception as e:
+        logger.error(f"Failed to prune images: {str(e)}")
+        raise RuntimeError(f"Failed to prune images: {str(e)}")
+
+
+@mcp.tool(
+    annotations={
         "title": "List Containers",
         "readOnlyHint": True,
         "destructiveHint": False,
@@ -412,6 +450,43 @@ async def remove_container(
     except Exception as e:
         logger.error(f"Failed to remove container: {str(e)}")
         raise RuntimeError(f"Failed to remove container: {str(e)}")
+
+
+@mcp.tool(
+    annotations={
+        "title": "Prune Containers",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    },
+    tags={"container_management"},
+)
+async def prune_containers(
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
+) -> Dict:
+    logger = logging.getLogger("ContainerManager")
+    logger.debug(
+        f"Pruning containers for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
+    try:
+        manager = create_manager(manager_type, silent, log_file)
+        return manager.prune_containers()
+    except Exception as e:
+        logger.error(f"Failed to prune containers: {str(e)}")
+        raise RuntimeError(f"Failed to prune containers: {str(e)}")
 
 
 @mcp.tool(
@@ -611,6 +686,44 @@ async def remove_volume(
 
 @mcp.tool(
     annotations={
+        "title": "Prune Volumes",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    },
+    tags={"container_management"},
+)
+async def prune_volumes(
+    all: bool = Field(description="Remove all volumes (dangerous)", default=False),
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
+) -> Dict:
+    logger = logging.getLogger("ContainerManager")
+    logger.debug(
+        f"Pruning volumes for {manager_type}, all: {all}, silent: {silent}, log_file: {log_file}"
+    )
+    try:
+        manager = create_manager(manager_type, silent, log_file)
+        return manager.prune_volumes(all=all)
+    except Exception as e:
+        logger.error(f"Failed to prune volumes: {str(e)}")
+        raise RuntimeError(f"Failed to prune volumes: {str(e)}")
+
+
+@mcp.tool(
+    annotations={
         "title": "List Networks",
         "readOnlyHint": True,
         "destructiveHint": False,
@@ -721,6 +834,82 @@ async def remove_network(
     except Exception as e:
         logger.error(f"Failed to remove network: {str(e)}")
         raise RuntimeError(f"Failed to remove network: {str(e)}")
+
+
+@mcp.tool(
+    annotations={
+        "title": "Prune Networks",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    },
+    tags={"container_management"},
+)
+async def prune_networks(
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
+) -> Dict:
+    logger = logging.getLogger("ContainerManager")
+    logger.debug(
+        f"Pruning networks for {manager_type}, silent: {silent}, log_file: {log_file}"
+    )
+    try:
+        manager = create_manager(manager_type, silent, log_file)
+        return manager.prune_networks()
+    except Exception as e:
+        logger.error(f"Failed to prune networks: {str(e)}")
+        raise RuntimeError(f"Failed to prune networks: {str(e)}")
+
+
+@mcp.tool(
+    annotations={
+        "title": "Prune System",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    },
+    tags={"container_management"},
+)
+async def prune_system(
+    force: bool = Field(description="Force prune", default=False),
+    all: bool = Field(description="Prune all unused resources", default=False),
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
+    ),
+    silent: Optional[bool] = Field(
+        description="Suppress output", default=environment_silent
+    ),
+    log_file: Optional[str] = Field(
+        description="Path to log file", default=environment_log_file
+    ),
+    ctx: Context = Field(
+        description="MCP context for progress reporting", default=None
+    ),
+) -> Dict:
+    logger = logging.getLogger("ContainerManager")
+    logger.debug(
+        f"Pruning system for {manager_type}, force: {force}, all: {all}, silent: {silent}, log_file: {log_file}"
+    )
+    try:
+        manager = create_manager(manager_type, silent, log_file)
+        return manager.prune_system(force, all)
+    except Exception as e:
+        logger.error(f"Failed to prune system: {str(e)}")
+        raise RuntimeError(f"Failed to prune system: {str(e)}")
 
 
 # Swarm-specific tools

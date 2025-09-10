@@ -106,6 +106,10 @@ class ContainerManagerBase(ABC):
         pass
 
     @abstractmethod
+    def prune_images(self, force: bool = False, all: bool = False) -> Dict:
+        pass
+
+    @abstractmethod
     def list_containers(self, all: bool = False) -> List[Dict]:
         pass
 
@@ -131,6 +135,10 @@ class ContainerManagerBase(ABC):
         pass
 
     @abstractmethod
+    def prune_containers(self, force: bool = False) -> Dict:
+        pass
+
+    @abstractmethod
     def get_container_logs(self, container_id: str, tail: str = "all") -> str:
         pass
 
@@ -153,6 +161,10 @@ class ContainerManagerBase(ABC):
         pass
 
     @abstractmethod
+    def prune_volumes(self, force: bool = False, all: bool = False) -> Dict:
+        pass
+
+    @abstractmethod
     def list_networks(self) -> List[Dict]:
         pass
 
@@ -162,6 +174,14 @@ class ContainerManagerBase(ABC):
 
     @abstractmethod
     def remove_network(self, network_id: str) -> Dict:
+        pass
+
+    @abstractmethod
+    def prune_networks(self) -> Dict:
+        pass
+
+    @abstractmethod
+    def prune_system(self, force: bool = False, all: bool = False) -> Dict:
         pass
 
     @abstractmethod
@@ -294,6 +314,25 @@ class DockerManager(ContainerManagerBase):
             self.log_action("pull_image", params, error=e)
             raise RuntimeError(f"Failed to pull image: {str(e)}")
 
+    def prune_images(self, force: bool = False, all: bool = False) -> Dict:
+        params = {"force": force, "all": all}
+        try:
+            filters = {"dangling": {"true": True}} if not all else {}
+            result = self.client.images.prune(filters=filters)
+            pruned = {
+                "space_reclaimed": self._format_size(result["SpaceReclaimed"]),
+                "images_removed": (
+                    [img["Id"][7:19] for img in result["ImagesRemoved"]]
+                    if result["ImagesRemoved"]
+                    else []
+                ),
+            }
+            self.log_action("prune_images", params, pruned)
+            return pruned
+        except Exception as e:
+            self.log_action("prune_images", params, error=e)
+            raise RuntimeError(f"Failed to prune images: {str(e)}")
+
     def list_containers(self, all: bool = False) -> List[Dict]:
         params = {"all": all}
         try:
@@ -384,6 +423,24 @@ class DockerManager(ContainerManagerBase):
             self.log_action("run_container", params, error=e)
             raise RuntimeError(f"Failed to run container: {str(e)}")
 
+    def prune_containers(self, force: bool = False) -> Dict:
+        params = {"force": force}
+        try:
+            result = self.client.containers.prune()
+            pruned = {
+                "space_reclaimed": self._format_size(result["SpaceReclaimed"]),
+                "containers_removed": (
+                    [c["Id"][7:19] for c in result["ContainersRemoved"]]
+                    if result["ContainersRemoved"]
+                    else []
+                ),
+            }
+            self.log_action("prune_containers", params, pruned)
+            return pruned
+        except Exception as e:
+            self.log_action("prune_containers", params, error=e)
+            raise RuntimeError(f"Failed to prune containers: {str(e)}")
+
     def list_networks(self) -> List[Dict]:
         params = {}
         try:
@@ -428,6 +485,24 @@ class DockerManager(ContainerManagerBase):
         except Exception as e:
             self.log_action("create_network", params, error=e)
             raise RuntimeError(f"Failed to create network: {str(e)}")
+
+    def prune_networks(self) -> Dict:
+        params = {}
+        try:
+            result = self.client.networks.prune()
+            pruned = {
+                "space_reclaimed": self._format_size(result["SpaceReclaimed"]),
+                "networks_removed": (
+                    [n["Id"][7:19] for n in result["NetworksRemoved"]]
+                    if result["NetworksRemoved"]
+                    else []
+                ),
+            }
+            self.log_action("prune_networks", params, pruned)
+            return pruned
+        except Exception as e:
+            self.log_action("prune_networks", params, error=e)
+            raise RuntimeError(f"Failed to prune networks: {str(e)}")
 
     def get_version(self) -> Dict:
         params = {}
@@ -581,6 +656,41 @@ class DockerManager(ContainerManagerBase):
             self.log_action("remove_volume", params, error=e)
             raise RuntimeError(f"Failed to remove volume: {str(e)}")
 
+    def prune_volumes(self, force: bool = False, all: bool = False) -> Dict:
+        params = {"force": force, "all": all}
+        try:
+            if all:
+                # Remove all volumes (equivalent to --all, but docker doesn't have --all for prune; we list and remove)
+                volumes = self.client.volumes.list(all=True)
+                removed = []
+                for v in volumes:
+                    try:
+                        v.remove(force=force)
+                        removed.append(v.attrs["Name"])
+                    except Exception as e:
+                        logging.info(f"Info: {e}")
+                        pass
+                result = {
+                    "volumes_removed": removed,
+                    "space_reclaimed": "N/A (all volumes)",
+                }
+            else:
+                result = self.client.volumes.prune()
+                pruned = {
+                    "space_reclaimed": self._format_size(result["SpaceReclaimed"]),
+                    "volumes_removed": (
+                        [v["Name"] for v in result["VolumesRemoved"]]
+                        if result["VolumesRemoved"]
+                        else []
+                    ),
+                }
+                result = pruned
+            self.log_action("prune_volumes", params, result)
+            return result
+        except Exception as e:
+            self.log_action("prune_volumes", params, error=e)
+            raise RuntimeError(f"Failed to prune volumes: {str(e)}")
+
     def remove_network(self, network_id: str) -> Dict:
         params = {"network_id": network_id}
         try:
@@ -592,6 +702,35 @@ class DockerManager(ContainerManagerBase):
         except Exception as e:
             self.log_action("remove_network", params, error=e)
             raise RuntimeError(f"Failed to remove network: {str(e)}")
+
+    def prune_system(self, force: bool = False, all: bool = False) -> Dict:
+        params = {"force": force, "all": all}
+        try:
+            filters = {"until": None} if all else {}
+            result = self.client.system.prune(filters=filters, space=True)
+            pruned = {
+                "space_reclaimed": self._format_size(result["SpaceReclaimed"]),
+                "images_removed": (
+                    [img["Id"][7:19] for img in result["ImagesDeleted"]]
+                    if "ImagesDeleted" in result
+                    else []
+                ),
+                "containers_removed": (
+                    [c["Id"][7:19] for c in result["ContainersDeleted"]]
+                    if "ContainersDeleted" in result
+                    else []
+                ),
+                "volumes_removed": (
+                    [v["Name"] for v in result["VolumesDeleted"]]
+                    if "VolumesDeleted" in result
+                    else []
+                ),
+            }
+            self.log_action("prune_system", params, pruned)
+            return pruned
+        except Exception as e:
+            self.log_action("prune_system", params, error=e)
+            raise RuntimeError(f"Failed to prune system: {str(e)}")
 
     def compose_up(
         self, compose_file: str, detach: bool = True, build: bool = False
@@ -983,6 +1122,23 @@ class PodmanManager(ContainerManagerBase):
             self.log_action("pull_image", params, error=e)
             raise RuntimeError(f"Failed to pull image: {str(e)}")
 
+    def prune_images(self, force: bool = False, all: bool = False) -> Dict:
+        params = {"force": force, "all": all}
+        try:
+            filters = {"dangling": True} if not all else {}
+            result = self.client.images.prune(filters=filters)
+            pruned = {
+                "space_reclaimed": self._format_size(result.get("SpaceReclaimed", 0)),
+                "images_removed": [
+                    img["Id"][7:19] for img in result.get("ImagesRemoved", [])
+                ],
+            }
+            self.log_action("prune_images", params, pruned)
+            return pruned
+        except Exception as e:
+            self.log_action("prune_images", params, error=e)
+            raise RuntimeError(f"Failed to prune images: {str(e)}")
+
     def list_containers(self, all: bool = False) -> List[Dict]:
         params = {"all": all}
         try:
@@ -1069,6 +1225,22 @@ class PodmanManager(ContainerManagerBase):
             self.log_action("run_container", params, error=e)
             raise RuntimeError(f"Failed to run container: {str(e)}")
 
+    def prune_containers(self, force: bool = False) -> Dict:
+        params = {"force": force}
+        try:
+            result = self.client.containers.prune()
+            pruned = {
+                "space_reclaimed": self._format_size(result.get("SpaceReclaimed", 0)),
+                "containers_removed": [
+                    c["Id"][7:19] for c in result.get("ContainersRemoved", [])
+                ],
+            }
+            self.log_action("prune_containers", params, pruned)
+            return pruned
+        except Exception as e:
+            self.log_action("prune_containers", params, error=e)
+            raise RuntimeError(f"Failed to prune containers: {str(e)}")
+
     def list_networks(self) -> List[Dict]:
         params = {}
         try:
@@ -1113,6 +1285,22 @@ class PodmanManager(ContainerManagerBase):
         except Exception as e:
             self.log_action("create_network", params, error=e)
             raise RuntimeError(f"Failed to create network: {str(e)}")
+
+    def prune_networks(self) -> Dict:
+        params = {}
+        try:
+            result = self.client.networks.prune()
+            pruned = {
+                "space_reclaimed": self._format_size(result.get("SpaceReclaimed", 0)),
+                "networks_removed": [
+                    n["Id"][7:19] for n in result.get("NetworksRemoved", [])
+                ],
+            }
+            self.log_action("prune_networks", params, pruned)
+            return pruned
+        except Exception as e:
+            self.log_action("prune_networks", params, error=e)
+            raise RuntimeError(f"Failed to prune networks: {str(e)}")
 
     def get_version(self) -> Dict:
         params = {}
@@ -1267,6 +1455,41 @@ class PodmanManager(ContainerManagerBase):
             self.log_action("remove_volume", params, error=e)
             raise RuntimeError(f"Failed to remove volume: {str(e)}")
 
+    def prune_volumes(self, force: bool = False, all: bool = False) -> Dict:
+        params = {"force": force, "all": all}
+        try:
+            if all:
+                # Remove all volumes
+                volumes = self.client.volumes.list(all=True)
+                removed = []
+                for v in volumes:
+                    try:
+                        v.remove(force=force)
+                        removed.append(v.attrs["Name"])
+                    except Exception as e:
+                        logging.info(f"Info: {e}")
+                        pass
+                result = {
+                    "volumes_removed": removed,
+                    "space_reclaimed": "N/A (all volumes)",
+                }
+            else:
+                result = self.client.volumes.prune()
+                pruned = {
+                    "space_reclaimed": self._format_size(
+                        result.get("SpaceReclaimed", 0)
+                    ),
+                    "volumes_removed": [
+                        v["Name"] for v in result.get("VolumesRemoved", [])
+                    ],
+                }
+                result = pruned
+            self.log_action("prune_volumes", params, result)
+            return result
+        except Exception as e:
+            self.log_action("prune_volumes", params, error=e)
+            raise RuntimeError(f"Failed to prune volumes: {str(e)}")
+
     def remove_network(self, network_id: str) -> Dict:
         params = {"network_id": network_id}
         try:
@@ -1278,6 +1501,26 @@ class PodmanManager(ContainerManagerBase):
         except Exception as e:
             self.log_action("remove_network", params, error=e)
             raise RuntimeError(f"Failed to remove network: {str(e)}")
+
+    def prune_system(self, force: bool = False, all: bool = False) -> Dict:
+        params = {"force": force, "all": all}
+        try:
+            # Podman system prune uses CLI, as podman-py may not have direct support
+            cmd = ["podman", "system", "prune"]
+            if all:
+                cmd.append("--all")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr)
+            pruned = {
+                "output": result.stdout.strip(),
+                "space_reclaimed": "Check output",
+            }
+            self.log_action("prune_system", params, pruned)
+            return pruned
+        except Exception as e:
+            self.log_action("prune_system", params, error=e)
+            raise RuntimeError(f"Failed to prune system: {str(e)}")
 
     def compose_up(
         self, compose_file: str, detach: bool = True, build: bool = False
@@ -1418,6 +1661,8 @@ Actions:
   --platform <plat>    [ Platform, e.g., linux/amd64 ]
 --remove-image <image> [ Remove image ]
   --force              [ Force removal (global for remove actions) ]
+--prune-images         [ Prune unused images ]
+  --all                [ Prune all unused images ]
 --list-containers      [ List containers ]
   --all                [ Show all containers ]
 --run-container <image> [ Run container ]
@@ -1431,6 +1676,7 @@ Actions:
   --timeout <sec>      [ Timeout, default 10 ]
 --remove-container <id>[ Remove container ]
   --force              [ Force ]
+--prune-containers     [ Prune stopped containers ]
 --get-container-logs <id> [ Get logs ]
   --tail <tail>        [ Tail lines, default all ]
 --exec-in-container <id> [ Exec command ]
@@ -1440,10 +1686,15 @@ Actions:
 --create-volume <name> [ Create volume ]
 --remove-volume <name> [ Remove volume ]
   --force              [ Force ]
+--prune-volumes        [ Prune unused volumes ]
+  --all                [ Remove all volumes (dangerous) ]
 --list-networks        [ List networks ]
 --create-network <name>[ Create network ]
   --driver <driver>    [ Driver, default bridge ]
 --remove-network <id>  [ Remove network ]
+--prune-networks       [ Prune unused networks ]
+--prune-system         [ Prune system resources ]
+  --all                [ Prune all unused (including volumes, build cache) ]
 --compose-up <file>    [ Compose up ]
   --build              [ Build images ]
   --detach             [ Detach mode, default true ]
@@ -1492,7 +1743,7 @@ def container_manager(argv):
     parser.add_argument(
         "--remove-image", type=str, default=None, help="Image to remove"
     )
-    parser.add_argument("--force", action="store_true", help="Force removal")
+    parser.add_argument("--prune-images", action="store_true", help="Prune images")
     parser.add_argument(
         "--list-containers", action="store_true", help="List containers"
     )
@@ -1514,6 +1765,9 @@ def container_manager(argv):
         "--remove-container", type=str, default=None, help="Container to remove"
     )
     parser.add_argument(
+        "--prune-containers", action="store_true", help="Prune containers"
+    )
+    parser.add_argument(
         "--get-container-logs", type=str, default=None, help="Container logs"
     )
     parser.add_argument("--tail", type=str, default="all", help="Tail lines")
@@ -1529,6 +1783,7 @@ def container_manager(argv):
     parser.add_argument(
         "--remove-volume", type=str, default=None, help="Volume to remove"
     )
+    parser.add_argument("--prune-volumes", action="store_true", help="Prune volumes")
     parser.add_argument("--list-networks", action="store_true", help="List networks")
     parser.add_argument(
         "--create-network", type=str, default=None, help="Network to create"
@@ -1537,6 +1792,8 @@ def container_manager(argv):
     parser.add_argument(
         "--remove-network", type=str, default=None, help="Network to remove"
     )
+    parser.add_argument("--prune-networks", action="store_true", help="Prune networks")
+    parser.add_argument("--prune-system", action="store_true", help="Prune system")
     parser.add_argument("--compose-up", type=str, default=None, help="Compose file up")
     parser.add_argument("--build", action="store_true", help="Build images")
     parser.add_argument(
@@ -1566,6 +1823,7 @@ def container_manager(argv):
     parser.add_argument(
         "--remove-service", type=str, default=None, help="Service to remove"
     )
+    parser.add_argument("--force", action="store_true", help="Force removal")
     parser.add_argument("-h", "--help", action="store_true", help="Show help")
 
     args = parser.parse_args(argv)
@@ -1583,9 +1841,11 @@ def container_manager(argv):
     platform = args.platform
     remove_image = args.remove_image is not None
     remove_image_str = args.remove_image
+    prune_images = args.prune_images
+    prune_images_all = args.all if prune_images else False
     force = args.force
     list_containers = args.list_containers
-    all_containers = args.all
+    all_containers = args.all if list_containers else False
     run_container = args.run_container is not None
     run_image = args.run_container
     name = args.name
@@ -1599,6 +1859,7 @@ def container_manager(argv):
     timeout = args.timeout
     remove_container = args.remove_container is not None
     remove_container_id = args.remove_container
+    prune_containers = args.prune_containers
     get_container_logs = args.get_container_logs is not None
     container_logs_id = args.get_container_logs
     tail = args.tail
@@ -1611,12 +1872,17 @@ def container_manager(argv):
     create_volume_name = args.create_volume
     remove_volume = args.remove_volume is not None
     remove_volume_name = args.remove_volume
+    prune_volumes = args.prune_volumes
+    prune_volumes_all = args.all if prune_volumes else False
     list_networks = args.list_networks
     create_network = args.create_network is not None
     create_network_name = args.create_network
     driver = args.driver
     remove_network = args.remove_network is not None
     remove_network_id = args.remove_network
+    prune_networks = args.prune_networks
+    prune_system = args.prune_system
+    prune_system_all = args.all if prune_system else False
     compose_up = args.compose_up is not None
     compose_up_file = args.compose_up
     compose_build = args.build
@@ -1665,6 +1931,9 @@ def container_manager(argv):
             raise ValueError("Image required for remove-image")
         print(json.dumps(manager.remove_image(remove_image_str, force), indent=2))
 
+    if prune_images:
+        print(json.dumps(manager.prune_images(force, prune_images_all), indent=2))
+
     if list_containers:
         print(json.dumps(manager.list_containers(all_containers), indent=2))
 
@@ -1710,6 +1979,9 @@ def container_manager(argv):
             json.dumps(manager.remove_container(remove_container_id, force), indent=2)
         )
 
+    if prune_containers:
+        print(json.dumps(manager.prune_containers(force), indent=2))
+
     if get_container_logs:
         if not container_logs_id:
             raise ValueError("Container ID required for get-container-logs")
@@ -1739,6 +2011,9 @@ def container_manager(argv):
             raise ValueError("Name required for remove-volume")
         print(json.dumps(manager.remove_volume(remove_volume_name, force), indent=2))
 
+    if prune_volumes:
+        print(json.dumps(manager.prune_volumes(force, prune_volumes_all), indent=2))
+
     if list_networks:
         print(json.dumps(manager.list_networks(), indent=2))
 
@@ -1751,6 +2026,12 @@ def container_manager(argv):
         if not remove_network_id:
             raise ValueError("ID required for remove-network")
         print(json.dumps(manager.remove_network(remove_network_id), indent=2))
+
+    if prune_networks:
+        print(json.dumps(manager.prune_networks(force), indent=2))
+
+    if prune_system:
+        print(json.dumps(manager.prune_system(force, prune_system_all), indent=2))
 
     if compose_up:
         if not compose_up_file:
