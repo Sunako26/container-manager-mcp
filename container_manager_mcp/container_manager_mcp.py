@@ -1134,7 +1134,7 @@ def container_manager_mcp():
     parser.add_argument(
         "-t", "--transport", type=str, default="stdio", help="Transport (stdio/http)"
     )
-    parser.add_argument("-h", "--host", type=str, default="0.0.0.0", help="Host")
+    parser.add_argument("-s", "--host", type=str, default="0.0.0.0", help="Host")
     parser.add_argument("-p", "--port", type=int, default=8000, help="Port")
     args = parser.parse_args()
 
