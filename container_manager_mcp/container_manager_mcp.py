@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import getopt
+import argparse
 import os
 import sys
 import logging
@@ -41,6 +41,7 @@ def to_boolean(string):
 
 environment_silent = os.environ.get("SILENT", False)
 environment_log_file = os.environ.get("LOG_FILE", None)
+environment_container_manager_type = os.environ.get("CONTAINER_MANAGER_TYPE", None)
 
 if environment_silent:
     environment_silent = to_boolean(environment_silent)
@@ -59,8 +60,9 @@ if environment_silent:
     tags={"container_management"},
 )
 async def get_version(
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -95,8 +97,9 @@ async def get_version(
     tags={"container_management"},
 )
 async def get_info(
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -131,8 +134,9 @@ async def get_info(
     tags={"container_management"},
 )
 async def list_images(
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -172,8 +176,9 @@ async def pull_image(
     platform: Optional[str] = Field(
         description="Platform (e.g., linux/amd64)", default=None
     ),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -210,8 +215,9 @@ async def pull_image(
 async def remove_image(
     image: str = Field(description="Image name or ID to remove"),
     force: bool = Field(description="Force removal", default=False),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -249,8 +255,9 @@ async def list_containers(
     all: bool = Field(
         description="Show all containers (default running only)", default=False
     ),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -301,8 +308,9 @@ async def run_container(
     environment: Optional[Dict[str, str]] = Field(
         description="Environment variables", default=None
     ),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -341,8 +349,9 @@ async def run_container(
 async def stop_container(
     container_id: str = Field(description="Container ID or name"),
     timeout: int = Field(description="Timeout in seconds", default=10),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -379,8 +388,9 @@ async def stop_container(
 async def remove_container(
     container_id: str = Field(description="Container ID or name"),
     force: bool = Field(description="Force removal", default=False),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -419,8 +429,9 @@ async def get_container_logs(
     tail: str = Field(
         description="Number of lines to show from the end (or 'all')", default="all"
     ),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -458,8 +469,9 @@ async def exec_in_container(
     container_id: str = Field(description="Container ID or name"),
     command: List[str] = Field(description="Command to execute"),
     detach: bool = Field(description="Detach execution", default=False),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -494,8 +506,9 @@ async def exec_in_container(
     tags={"container_management"},
 )
 async def list_volumes(
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -531,8 +544,9 @@ async def list_volumes(
 )
 async def create_volume(
     name: str = Field(description="Volume name"),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -569,8 +583,9 @@ async def create_volume(
 async def remove_volume(
     name: str = Field(description="Volume name"),
     force: bool = Field(description="Force removal", default=False),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -605,8 +620,9 @@ async def remove_volume(
     tags={"container_management"},
 )
 async def list_networks(
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -643,8 +659,9 @@ async def list_networks(
 async def create_network(
     name: str = Field(description="Network name"),
     driver: str = Field(description="Network driver (e.g., bridge)", default="bridge"),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -680,8 +697,9 @@ async def create_network(
 )
 async def remove_network(
     network_id: str = Field(description="Network ID or name"),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -722,7 +740,10 @@ async def init_swarm(
     advertise_addr: Optional[str] = Field(
         description="Advertise address", default=None
     ),
-    manager_type: str = Field(description="Must be docker for swarm", default="docker"),
+    manager_type: Optional[str] = Field(
+        description="Container manager: must be docker for swarm (default: auto-detect)",
+        default=environment_container_manager_type,
+    ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
     ),
@@ -733,7 +754,7 @@ async def init_swarm(
         description="MCP context for progress reporting", default=None
     ),
 ) -> Dict:
-    if manager_type != "docker":
+    if manager_type and manager_type != "docker":
         raise ValueError("Swarm operations are only supported on Docker")
     logger = logging.getLogger("ContainerManager")
     logger.debug(
@@ -759,7 +780,10 @@ async def init_swarm(
 )
 async def leave_swarm(
     force: bool = Field(description="Force leave", default=False),
-    manager_type: str = Field(description="Must be docker for swarm", default="docker"),
+    manager_type: Optional[str] = Field(
+        description="Container manager: must be docker for swarm (default: auto-detect)",
+        default=environment_container_manager_type,
+    ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
     ),
@@ -770,7 +794,7 @@ async def leave_swarm(
         description="MCP context for progress reporting", default=None
     ),
 ) -> Dict:
-    if manager_type != "docker":
+    if manager_type and manager_type != "docker":
         raise ValueError("Swarm operations are only supported on Docker")
     logger = logging.getLogger("ContainerManager")
     logger.debug(
@@ -795,7 +819,10 @@ async def leave_swarm(
     tags={"container_management", "swarm"},
 )
 async def list_nodes(
-    manager_type: str = Field(description="Must be docker for swarm", default="docker"),
+    manager_type: Optional[str] = Field(
+        description="Container manager: must be docker for swarm (default: auto-detect)",
+        default=environment_container_manager_type,
+    ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
     ),
@@ -806,7 +833,7 @@ async def list_nodes(
         description="MCP context for progress reporting", default=None
     ),
 ) -> List[Dict]:
-    if manager_type != "docker":
+    if manager_type and manager_type != "docker":
         raise ValueError("Swarm operations are only supported on Docker")
     logger = logging.getLogger("ContainerManager")
     logger.debug(
@@ -831,7 +858,10 @@ async def list_nodes(
     tags={"container_management", "swarm"},
 )
 async def list_services(
-    manager_type: str = Field(description="Must be docker for swarm", default="docker"),
+    manager_type: Optional[str] = Field(
+        description="Container manager: must be docker for swarm (default: auto-detect)",
+        default=environment_container_manager_type,
+    ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
     ),
@@ -842,7 +872,7 @@ async def list_services(
         description="MCP context for progress reporting", default=None
     ),
 ) -> List[Dict]:
-    if manager_type != "docker":
+    if manager_type and manager_type != "docker":
         raise ValueError("Swarm operations are only supported on Docker")
     logger = logging.getLogger("ContainerManager")
     logger.debug(
@@ -876,7 +906,10 @@ async def create_service(
     mounts: Optional[List[str]] = Field(
         description="Mounts [source:target:mode]", default=None
     ),
-    manager_type: str = Field(description="Must be docker for swarm", default="docker"),
+    manager_type: Optional[str] = Field(
+        description="Container manager: must be docker for swarm (default: auto-detect)",
+        default=environment_container_manager_type,
+    ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
     ),
@@ -887,7 +920,7 @@ async def create_service(
         description="MCP context for progress reporting", default=None
     ),
 ) -> Dict:
-    if manager_type != "docker":
+    if manager_type and manager_type != "docker":
         raise ValueError("Swarm operations are only supported on Docker")
     logger = logging.getLogger("ContainerManager")
     logger.debug(
@@ -913,7 +946,10 @@ async def create_service(
 )
 async def remove_service(
     service_id: str = Field(description="Service ID or name"),
-    manager_type: str = Field(description="Must be docker for swarm", default="docker"),
+    manager_type: Optional[str] = Field(
+        description="Container manager: must be docker for swarm (default: auto-detect)",
+        default=environment_container_manager_type,
+    ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
     ),
@@ -924,7 +960,7 @@ async def remove_service(
         description="MCP context for progress reporting", default=None
     ),
 ) -> Dict:
-    if manager_type != "docker":
+    if manager_type and manager_type != "docker":
         raise ValueError("Swarm operations are only supported on Docker")
     logger = logging.getLogger("ContainerManager")
     logger.debug(
@@ -952,8 +988,9 @@ async def compose_up(
     compose_file: str = Field(description="Path to compose file"),
     detach: bool = Field(description="Detach mode", default=True),
     build: bool = Field(description="Build images", default=False),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -989,8 +1026,9 @@ async def compose_up(
 )
 async def compose_down(
     compose_file: str = Field(description="Path to compose file"),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -1026,8 +1064,9 @@ async def compose_down(
 )
 async def compose_ps(
     compose_file: str = Field(description="Path to compose file"),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -1064,8 +1103,9 @@ async def compose_ps(
 async def compose_logs(
     compose_file: str = Field(description="Path to compose file"),
     service: Optional[str] = Field(description="Specific service", default=None),
-    manager_type: str = Field(
-        description="Container manager: docker, podman", default="docker"
+    manager_type: Optional[str] = Field(
+        description="Container manager: docker, podman (default: auto-detect)",
+        default=environment_container_manager_type,
     ),
     silent: Optional[bool] = Field(
         description="Suppress output", default=environment_silent
@@ -1090,35 +1130,21 @@ async def compose_logs(
 
 
 def container_manager_mcp(argv):
-    transport = "stdio"
-    host = "0.0.0.0"
-    port = 8000
-    try:
-        opts, args = getopt.getopt(
-            argv,
-            "ht:h:p:",
-            ["help", "transport=", "host=", "port="],
-        )
-    except getopt.GetoptError:
-        logger = logging.getLogger("ContainerManager")
-        logger.error("Incorrect arguments")
-        sys.exit(2)
-    for opt, arg in opts:
-        if opt in ("-h", "--help"):
-            sys.exit(2)
-        elif opt in ("-t", "--transport"):
-            transport = arg
-        elif opt in ("-h", "--host"):
-            host = arg
-        elif opt in ("-p", "--port"):
-            try:
-                port = int(arg)
-                if not (0 <= port <= 65535):
-                    print(f"Error: Port {arg} is out of valid range (0-65535).")
-                    sys.exit(1)
-            except ValueError:
-                print(f"Error: Port {arg} is not a valid integer.")
-                sys.exit(1)
+    parser = argparse.ArgumentParser(description="Container Manager MCP Server")
+    parser.add_argument(
+        "-t", "--transport", type=str, default="stdio", help="Transport (stdio/http)"
+    )
+    parser.add_argument("-h", "--host", type=str, default="0.0.0.0", help="Host")
+    parser.add_argument("-p", "--port", type=int, default=8000, help="Port")
+    args = parser.parse_args(argv)
+
+    transport = args.transport
+    host = args.host
+    port = args.port
+    if not (0 <= port <= 65535):
+        print(f"Error: Port {port} is out of valid range (0-65535).")
+        sys.exit(1)
+
     setup_logging(is_mcp_server=True, log_file="container_manager_mcp.log")
     if transport == "stdio":
         mcp.run(transport="stdio")
@@ -1128,10 +1154,6 @@ def container_manager_mcp(argv):
         logger = logging.getLogger("ContainerManager")
         logger.error("Transport not supported")
         sys.exit(1)
-
-
-def main():
-    container_manager_mcp(sys.argv[1:])
 
 
 if __name__ == "__main__":

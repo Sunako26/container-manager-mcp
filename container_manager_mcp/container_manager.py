@@ -6,11 +6,12 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, Any
-import getopt
+import argparse
 import json
 import subprocess
 from datetime import datetime
 import dateutil.parser
+import platform
 
 try:
     import docker
@@ -815,15 +816,107 @@ class DockerManager(ContainerManagerBase):
 
 
 class PodmanManager(ContainerManagerBase):
-    def __init__(self, silent: bool = False, log_file: str = None):
+    def __init__(self, silent: bool = False, log_file: Optional[str] = None):
         super().__init__(silent, log_file)
+
         if PodmanClient is None:
             raise ImportError("Please install podman-py: pip install podman")
+
+        base_url = self._autodetect_podman_url()
+        if base_url is None:
+            self.logger.error(
+                "No valid Podman socket found after trying all known locations"
+            )
+            raise RuntimeError("Failed to connect to Podman: No valid socket found")
+
         try:
-            self.client = PodmanClient()
+            self.client = PodmanClient(base_url=base_url)
+            self.logger.info(f"Connected to Podman with base_url: {base_url}")
         except PodmanError as e:
-            self.logger.error(f"Failed to connect to Podman daemon: {str(e)}")
-            raise RuntimeError(f"Failed to connect to Podman: {str(e)}")
+            self.logger.error(
+                f"Failed to connect to Podman daemon with {base_url}: {str(e)}"
+            )
+            raise RuntimeError(f"Failed to connect to Podman with {base_url}: {str(e)}")
+
+    def _is_wsl(self) -> bool:
+        """Check if running inside WSL2."""
+        try:
+            with open("/proc/version", "r") as f:
+                return "WSL" in f.read()
+        except FileNotFoundError:
+            return "WSL_DISTRO_NAME" in os.environ
+
+    def _is_podman_machine_running(self) -> bool:
+        """Check if Podman machine is running (for Windows/WSL2)."""
+        try:
+            result = subprocess.run(
+                ["podman", "machine", "list", "--format", "{{.Running}}"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            return "true" in result.stdout.lower()
+        except (subprocess.SubprocessError, FileNotFoundError):
+            return False
+
+    def _try_connect(self, base_url: str) -> Optional[PodmanClient]:
+        """Attempt to connect to Podman with the given base_url."""
+        try:
+            client = PodmanClient(base_url=base_url)
+            # Test connection
+            client.version()
+            return client
+        except PodmanError as e:
+            self.logger.debug(f"Connection failed for {base_url}: {str(e)}")
+            return None
+
+    def _autodetect_podman_url(self) -> Optional[str]:
+        """Autodetect the appropriate Podman socket URL based on platform."""
+        # Check for environment variable override
+        base_url = os.environ.get("PODMAN_BASE_URL")
+        if base_url:
+            self.logger.info(f"Using PODMAN_BASE_URL from environment: {base_url}")
+            return base_url
+
+        system = platform.system()
+        is_wsl = self._is_wsl()
+
+        # Define socket candidates based on platform
+        socket_candidates = []
+        if system == "Windows" and not is_wsl:
+            # Windows with Podman machine
+            if self._is_podman_machine_running():
+                socket_candidates.append("npipe:////./pipe/docker_engine")
+            # Fallback to WSL2 distro sockets if running in a mixed setup
+            socket_candidates.extend(
+                [
+                    "unix:///mnt/wsl/podman-sockets/podman-machine-default/podman-user.sock",  # Rootless
+                    "unix:///mnt/wsl/podman-sockets/podman-machine-default/podman-root.sock",  # Rootful
+                ]
+            )
+        elif system == "Linux" or is_wsl:
+            # Linux or WSL2 distro: prioritize rootless, then rootful
+            uid = os.getuid()
+            socket_candidates.extend(
+                [
+                    f"unix:///run/user/{uid}/podman/podman.sock",  # Rootless
+                    "unix:///run/podman/podman.sock",  # Rootful
+                ]
+            )
+
+        # Try each socket candidate
+        for url in socket_candidates:
+            # For Unix sockets, check if the file exists (on Linux/WSL2)
+            if url.startswith("unix://") and (system == "Linux" or is_wsl):
+                socket_path = url.replace("unix://", "")
+                if not os.path.exists(socket_path):
+                    self.logger.debug(f"Socket {socket_path} does not exist")
+                    continue
+            client = self._try_connect(url)
+            if client:
+                return url
+
+        return None
 
     def list_images(self) -> List[Dict]:
         params = {}
@@ -1272,13 +1365,32 @@ class PodmanManager(ContainerManagerBase):
         raise NotImplementedError("Swarm not supported in Podman")
 
 
-# The rest of the file (create_manager, usage, container_manager) remains unchanged
-
-
 def create_manager(
-    manager_type: str, silent: bool = False, log_file: str = None
+    manager_type: Optional[str] = None, silent: bool = False, log_file: str = None
 ) -> ContainerManagerBase:
-    if manager_type.lower() == "docker" or manager_type.lower() == "swarm":
+    if manager_type is None:
+        manager_type = os.environ.get("CONTAINER_MANAGER_TYPE")
+    if manager_type is None:
+        # Autodetect
+        if PodmanClient is not None:
+            try:
+                test_client = PodmanClient()
+                test_client.close()
+                manager_type = "podman"
+            except Exception:
+                pass
+        if manager_type is None and docker is not None:
+            try:
+                test_client = docker.from_env()
+                test_client.close()
+                manager_type = "docker"
+            except Exception:
+                pass
+    if manager_type is None:
+        raise ValueError(
+            "No supported container manager detected. Set CONTAINER_MANAGER_TYPE or install Docker/Podman."
+        )
+    if manager_type.lower() in ["docker", "swarm"]:
         return DockerManager(silent=silent, log_file=log_file)
     elif manager_type.lower() == "podman":
         return PodmanManager(silent=silent, log_file=log_file)
@@ -1294,7 +1406,7 @@ Container Manager: A tool to manage containers with Docker, Podman, and Docker S
 Usage:
 -h | --help            [ See usage for script ]
 -s | --silent          [ Suppress output ]
--m | --manager <type>  [ docker, podman, swarm; default: docker ]
+-m | --manager <type>  [ docker, podman, swarm; default: auto-detect ]
 --log-file <path>      [ Log to specified file (default: container_manager.log in script dir) ]
 
 Actions:
@@ -1359,262 +1471,178 @@ container_manager.py --manager docker --pull-image nginx --tag latest --list-con
 
 
 def container_manager(argv):
-    get_version = False
-    get_info = False
-    list_images = False
-    pull_image = False
-    pull_image_str = None
-    tag = "latest"
-    platform = None
-    remove_image = False
-    remove_image_str = None
-    force = False
-    list_containers = False
-    all_containers = False
-    run_container = False
-    run_image = None
-    name = None
-    command = None
-    detach = False
-    ports_str = None
-    volumes_str = None
-    environment_str = None
-    stop_container = False
-    stop_container_id = None
-    timeout = 10
-    remove_container = False
-    remove_container_id = None
-    get_container_logs = False
-    container_logs_id = None
-    tail = "all"
-    exec_in_container = False
-    exec_container_id = None
-    exec_command = None
-    exec_detach = False
-    list_volumes = False
-    create_volume = False
-    create_volume_name = None
-    remove_volume = False
-    remove_volume_name = None
-    list_networks = False
-    create_network = False
-    create_network_name = None
-    driver = "bridge"
-    remove_network = False
-    remove_network_id = None
-    compose_up = False
-    compose_up_file = None
-    compose_build = False
-    compose_detach = True
-    compose_down = False
-    compose_down_file = None
-    compose_ps = False
-    compose_ps_file = None
-    compose_logs = False
-    compose_logs_file = None
-    compose_service = None
-    init_swarm = False
-    advertise_addr = None
-    leave_swarm = False
-    list_nodes = False
-    list_services = False
-    create_service = False
-    create_service_name = None
-    service_image = None
-    replicas = 1
-    mounts_str = None
-    remove_service = False
-    remove_service_id = None
-    manager_type = "docker"
-    silent = False
-    log_file = None
+    parser = argparse.ArgumentParser(
+        description="Container Manager: A tool to manage containers with Docker, Podman, and Docker Swarm!"
+    )
+    parser.add_argument("-s", "--silent", action="store_true", help="Suppress output")
+    parser.add_argument(
+        "-m",
+        "--manager",
+        type=str,
+        default=None,
+        help="Container manager type: docker, podman, swarm (default: auto-detect)",
+    )
+    parser.add_argument("--log-file", type=str, default=None, help="Path to log file")
+    parser.add_argument("--get-version", action="store_true", help="Get version info")
+    parser.add_argument("--get-info", action="store_true", help="Get system info")
+    parser.add_argument("--list-images", action="store_true", help="List images")
+    parser.add_argument("--pull-image", type=str, default=None, help="Image to pull")
+    parser.add_argument("--tag", type=str, default="latest", help="Image tag")
+    parser.add_argument("--platform", type=str, default=None, help="Platform")
+    parser.add_argument(
+        "--remove-image", type=str, default=None, help="Image to remove"
+    )
+    parser.add_argument("--force", action="store_true", help="Force removal")
+    parser.add_argument(
+        "--list-containers", action="store_true", help="List containers"
+    )
+    parser.add_argument("--all", action="store_true", help="Show all containers")
+    parser.add_argument("--run-container", type=str, default=None, help="Image to run")
+    parser.add_argument("--name", type=str, default=None, help="Container name")
+    parser.add_argument("--command", type=str, default=None, help="Command to run")
+    parser.add_argument("--detach", action="store_true", help="Detach mode")
+    parser.add_argument("--ports", type=str, default=None, help="Port mappings")
+    parser.add_argument("--volumes", type=str, default=None, help="Volume mappings")
+    parser.add_argument(
+        "--environment", type=str, default=None, help="Environment vars"
+    )
+    parser.add_argument(
+        "--stop-container", type=str, default=None, help="Container to stop"
+    )
+    parser.add_argument("--timeout", type=int, default=10, help="Timeout in seconds")
+    parser.add_argument(
+        "--remove-container", type=str, default=None, help="Container to remove"
+    )
+    parser.add_argument(
+        "--get-container-logs", type=str, default=None, help="Container logs"
+    )
+    parser.add_argument("--tail", type=str, default="all", help="Tail lines")
+    parser.add_argument(
+        "--exec-in-container", type=str, default=None, help="Container to exec"
+    )
+    parser.add_argument("--exec-command", type=str, default=None, help="Exec command")
+    parser.add_argument("--exec-detach", action="store_true", help="Detach exec")
+    parser.add_argument("--list-volumes", action="store_true", help="List volumes")
+    parser.add_argument(
+        "--create-volume", type=str, default=None, help="Volume to create"
+    )
+    parser.add_argument(
+        "--remove-volume", type=str, default=None, help="Volume to remove"
+    )
+    parser.add_argument("--list-networks", action="store_true", help="List networks")
+    parser.add_argument(
+        "--create-network", type=str, default=None, help="Network to create"
+    )
+    parser.add_argument("--driver", type=str, default="bridge", help="Network driver")
+    parser.add_argument(
+        "--remove-network", type=str, default=None, help="Network to remove"
+    )
+    parser.add_argument("--compose-up", type=str, default=None, help="Compose file up")
+    parser.add_argument("--build", action="store_true", help="Build images")
+    parser.add_argument(
+        "--compose-detach", action="store_true", default=True, help="Detach compose"
+    )
+    parser.add_argument(
+        "--compose-down", type=str, default=None, help="Compose file down"
+    )
+    parser.add_argument("--compose-ps", type=str, default=None, help="Compose ps")
+    parser.add_argument("--compose-logs", type=str, default=None, help="Compose logs")
+    parser.add_argument("--service", type=str, default=None, help="Specific service")
+    parser.add_argument("--init-swarm", action="store_true", help="Init swarm")
+    parser.add_argument(
+        "--advertise-addr", type=str, default=None, help="Advertise address"
+    )
+    parser.add_argument("--leave-swarm", action="store_true", help="Leave swarm")
+    parser.add_argument("--list-nodes", action="store_true", help="List swarm nodes")
+    parser.add_argument(
+        "--list-services", action="store_true", help="List swarm services"
+    )
+    parser.add_argument(
+        "--create-service", type=str, default=None, help="Service to create"
+    )
+    parser.add_argument("--image", type=str, default=None, help="Service image")
+    parser.add_argument("--replicas", type=int, default=1, help="Replicas")
+    parser.add_argument("--mounts", type=str, default=None, help="Mounts")
+    parser.add_argument(
+        "--remove-service", type=str, default=None, help="Service to remove"
+    )
+    parser.add_argument("-h", "--help", action="store_true", help="Show help")
 
-    try:
-        opts, _ = getopt.getopt(
-            argv,
-            "hsm:",
-            [
-                "help",
-                "silent",
-                "manager=",
-                "log-file=",
-                "get-version",
-                "get-info",
-                "list-images",
-                "pull-image=",
-                "tag=",
-                "platform=",
-                "remove-image=",
-                "force",
-                "list-containers",
-                "all",
-                "run-container=",
-                "name=",
-                "command=",
-                "detach",
-                "ports=",
-                "volumes=",
-                "environment=",
-                "stop-container=",
-                "timeout=",
-                "remove-container=",
-                "get-container-logs=",
-                "tail=",
-                "exec-in-container=",
-                "exec-command=",
-                "exec-detach",
-                "list-volumes",
-                "create-volume=",
-                "remove-volume=",
-                "list-networks",
-                "create-network=",
-                "driver=",
-                "remove-network=",
-                "compose-up=",
-                "build",
-                "compose-down=",
-                "compose-ps=",
-                "compose-logs=",
-                "service=",
-                "init-swarm",
-                "advertise-addr=",
-                "leave-swarm",
-                "list-nodes",
-                "list-services",
-                "create-service=",
-                "image=",
-                "replicas=",
-                "mounts=",
-                "remove-service=",
-            ],
-        )
-    except getopt.GetoptError:
+    args = parser.parse_args(argv)
+
+    if args.help:
         usage()
-        sys.exit(2)
+        sys.exit(0)
 
-    for opt, arg in opts:
-        if opt in ("-h", "--help"):
-            usage()
-            sys.exit()
-        elif opt in ("-s", "--silent"):
-            silent = True
-        elif opt in ("-m", "--manager"):
-            manager_type = arg
-        elif opt == "--log-file":
-            log_file = arg
-        elif opt == "--get-version":
-            get_version = True
-        elif opt == "--get-info":
-            get_info = True
-        elif opt == "--list-images":
-            list_images = True
-        elif opt == "--pull-image":
-            pull_image = True
-            pull_image_str = arg
-        elif opt == "--tag":
-            tag = arg
-        elif opt == "--platform":
-            platform = arg
-        elif opt == "--remove-image":
-            remove_image = True
-            remove_image_str = arg
-        elif opt == "--force":
-            force = True
-        elif opt == "--list-containers":
-            list_containers = True
-        elif opt == "--all":
-            all_containers = True
-        elif opt == "--run-container":
-            run_container = True
-            run_image = arg
-        elif opt == "--name":
-            name = arg
-        elif opt == "--command":
-            command = arg
-        elif opt == "--detach":
-            detach = True
-        elif opt == "--ports":
-            ports_str = arg
-        elif opt == "--volumes":
-            volumes_str = arg
-        elif opt == "--environment":
-            environment_str = arg
-        elif opt == "--stop-container":
-            stop_container = True
-            stop_container_id = arg
-        elif opt == "--timeout":
-            timeout = int(arg)
-        elif opt == "--remove-container":
-            remove_container = True
-            remove_container_id = arg
-        elif opt == "--get-container-logs":
-            get_container_logs = True
-            container_logs_id = arg
-        elif opt == "--tail":
-            tail = arg
-        elif opt == "--exec-in-container":
-            exec_in_container = True
-            exec_container_id = arg
-        elif opt == "--exec-command":
-            exec_command = arg
-        elif opt == "--exec-detach":
-            exec_detach = True
-        elif opt == "--list-volumes":
-            list_volumes = True
-        elif opt == "--create-volume":
-            create_volume = True
-            create_volume_name = arg
-        elif opt == "--remove-volume":
-            remove_volume = True
-            remove_volume_name = arg
-        elif opt == "--list-networks":
-            list_networks = True
-        elif opt == "--create-network":
-            create_network = True
-            create_network_name = arg
-        elif opt == "--driver":
-            driver = arg
-        elif opt == "--remove-network":
-            remove_network = True
-            remove_network_id = arg
-        elif opt == "--compose-up":
-            compose_up = True
-            compose_up_file = arg
-        elif opt == "--build":
-            compose_build = True
-        elif opt == "--compose-down":
-            compose_down = True
-            compose_down_file = arg
-        elif opt == "--compose-ps":
-            compose_ps = True
-            compose_ps_file = arg
-        elif opt == "--compose-logs":
-            compose_logs = True
-            compose_logs_file = arg
-        elif opt == "--service":
-            compose_service = arg
-        elif opt == "--init-swarm":
-            init_swarm = True
-        elif opt == "--advertise-addr":
-            advertise_addr = arg
-        elif opt == "--leave-swarm":
-            leave_swarm = True
-        elif opt == "--list-nodes":
-            list_nodes = True
-        elif opt == "--list-services":
-            list_services = True
-        elif opt == "--create-service":
-            create_service = True
-            create_service_name = arg
-        elif opt == "--image":
-            service_image = arg
-        elif opt == "--replicas":
-            replicas = int(arg)
-        elif opt == "--mounts":
-            mounts_str = arg
-        elif opt == "--remove-service":
-            remove_service = True
-            remove_service_id = arg
+    get_version = args.get_version
+    get_info = args.get_info
+    list_images = args.list_images
+    pull_image = args.pull_image is not None
+    pull_image_str = args.pull_image
+    tag = args.tag
+    platform = args.platform
+    remove_image = args.remove_image is not None
+    remove_image_str = args.remove_image
+    force = args.force
+    list_containers = args.list_containers
+    all_containers = args.all
+    run_container = args.run_container is not None
+    run_image = args.run_container
+    name = args.name
+    command = args.command
+    detach = args.detach
+    ports_str = args.ports
+    volumes_str = args.volumes
+    environment_str = args.environment
+    stop_container = args.stop_container is not None
+    stop_container_id = args.stop_container
+    timeout = args.timeout
+    remove_container = args.remove_container is not None
+    remove_container_id = args.remove_container
+    get_container_logs = args.get_container_logs is not None
+    container_logs_id = args.get_container_logs
+    tail = args.tail
+    exec_in_container = args.exec_in_container is not None
+    exec_container_id = args.exec_in_container
+    exec_command = args.exec_command
+    exec_detach = args.exec_detach
+    list_volumes = args.list_volumes
+    create_volume = args.create_volume is not None
+    create_volume_name = args.create_volume
+    remove_volume = args.remove_volume is not None
+    remove_volume_name = args.remove_volume
+    list_networks = args.list_networks
+    create_network = args.create_network is not None
+    create_network_name = args.create_network
+    driver = args.driver
+    remove_network = args.remove_network is not None
+    remove_network_id = args.remove_network
+    compose_up = args.compose_up is not None
+    compose_up_file = args.compose_up
+    compose_build = args.build
+    compose_detach = args.compose_detach
+    compose_down = args.compose_down is not None
+    compose_down_file = args.compose_down
+    compose_ps = args.compose_ps is not None
+    compose_ps_file = args.compose_ps
+    compose_logs = args.compose_logs is not None
+    compose_logs_file = args.compose_logs
+    compose_service = args.service
+    init_swarm = args.init_swarm
+    advertise_addr = args.advertise_addr
+    leave_swarm = args.leave_swarm
+    list_nodes = args.list_nodes
+    list_services = args.list_services
+    create_service = args.create_service is not None
+    create_service_name = args.create_service
+    service_image = args.image
+    replicas = args.replicas
+    mounts_str = args.mounts
+    remove_service = args.remove_service is not None
+    remove_service_id = args.remove_service
+    manager_type = args.manager
+    silent = args.silent
+    log_file = args.log_file
 
     manager = create_manager(manager_type, silent, log_file)
 
