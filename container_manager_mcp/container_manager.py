@@ -9,6 +9,7 @@ from typing import List, Dict, Optional, Any
 import getopt
 import json
 import subprocess
+from datetime import datetime  # Added for consistent timestamp formatting
 
 try:
     import docker
@@ -54,6 +55,16 @@ class ContainerManagerBase(ABC):
             self.logger.info(f"Result: {result}")
         if error:
             self.logger.error(f"Error: {str(error)}")
+
+    def _format_size(self, size_bytes: int) -> str:
+        """Helper to format bytes to human-readable (e.g., 1.23GB)."""
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
+            if size_bytes < 1024.0:
+                return (
+                    f"{size_bytes:.2f}{unit}" if unit != "B" else f"{size_bytes}{unit}"
+                )
+            size_bytes /= 1024.0
+        return f"{size_bytes:.2f}PB"
 
     @abstractmethod
     def get_version(self) -> Dict:
@@ -136,7 +147,6 @@ class ContainerManagerBase(ABC):
     def remove_network(self, network_id: str) -> Dict:
         pass
 
-    # Compose methods
     @abstractmethod
     def compose_up(
         self, compose_file: str, detach: bool = True, build: bool = False
@@ -155,19 +165,23 @@ class ContainerManagerBase(ABC):
     def compose_logs(self, compose_file: str, service: Optional[str] = None) -> str:
         pass
 
-    # Swarm methods (to be implemented only in DockerManager)
+    @abstractmethod
     def init_swarm(self, advertise_addr: Optional[str] = None) -> Dict:
-        raise NotImplementedError("Swarm not supported")
+        pass
 
+    @abstractmethod
     def leave_swarm(self, force: bool = False) -> Dict:
-        raise NotImplementedError("Swarm not supported")
+        pass
 
+    @abstractmethod
     def list_nodes(self) -> List[Dict]:
-        raise NotImplementedError("Swarm not supported")
+        pass
 
+    @abstractmethod
     def list_services(self) -> List[Dict]:
-        raise NotImplementedError("Swarm not supported")
+        pass
 
+    @abstractmethod
     def create_service(
         self,
         name: str,
@@ -176,10 +190,11 @@ class ContainerManagerBase(ABC):
         ports: Optional[Dict[str, str]] = None,
         mounts: Optional[List[str]] = None,
     ) -> Dict:
-        raise NotImplementedError("Swarm not supported")
+        pass
 
+    @abstractmethod
     def remove_service(self, service_id: str) -> Dict:
-        raise NotImplementedError("Swarm not supported")
+        pass
 
 
 class DockerManager(ContainerManagerBase):
@@ -196,7 +211,14 @@ class DockerManager(ContainerManagerBase):
     def get_version(self) -> Dict:
         params = {}
         try:
-            result = self.client.version()
+            version = self.client.version()
+            result = {
+                "version": version.get("Version", "unknown"),
+                "api_version": version.get("ApiVersion", "unknown"),
+                "os": version.get("Os", "unknown"),
+                "arch": version.get("Arch", "unknown"),
+                "build_time": version.get("BuildTime", "unknown"),
+            }
             self.log_action("get_version", params, result)
             return result
         except Exception as e:
@@ -206,7 +228,16 @@ class DockerManager(ContainerManagerBase):
     def get_info(self) -> Dict:
         params = {}
         try:
-            result = self.client.info()
+            info = self.client.info()
+            result = {
+                "containers_total": info.get("Containers", 0),
+                "containers_running": info.get("ContainersRunning", 0),
+                "images": info.get("Images", 0),
+                "driver": info.get("Driver", "unknown"),
+                "platform": f"{info.get('OperatingSystem', 'unknown')} {info.get('Architecture', 'unknown')}",
+                "memory_total": self._format_size(info.get("MemTotal", 0)),
+                "swap_total": self._format_size(info.get("SwapTotal", 0)),
+            }
             self.log_action("get_info", params, result)
             return result
         except Exception as e:
@@ -217,7 +248,38 @@ class DockerManager(ContainerManagerBase):
         params = {}
         try:
             images = self.client.images.list()
-            result = [img.attrs for img in images]
+            result = []
+            for img in images:
+                attrs = img.attrs
+                repo_tags = attrs.get("RepoTags", [])
+                repo_tag = repo_tags[0] if repo_tags else "<none>:<none>"
+                repository, tag = (
+                    repo_tag.rsplit(":", 1) if ":" in repo_tag else ("<none>", "<none>")
+                )
+
+                created = attrs.get("Created", 0)
+                created_str = (
+                    datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
+                    if created
+                    else "unknown"
+                )
+
+                size_bytes = attrs.get("Size", 0)
+                size_str = self._format_size(size_bytes) if size_bytes else "0B"
+
+                simplified = {
+                    "repository": repository,
+                    "tag": tag,
+                    "id": (
+                        attrs.get("Id", "unknown")[7:19]
+                        if attrs.get("Id")
+                        else "unknown"
+                    ),
+                    "created": created_str,
+                    "size": size_str,
+                }
+                result.append(simplified)
+
             self.log_action("list_images", params, result)
             return result
         except Exception as e:
@@ -230,7 +292,29 @@ class DockerManager(ContainerManagerBase):
         params = {"image": image, "tag": tag, "platform": platform}
         try:
             img = self.client.images.pull(f"{image}:{tag}", platform=platform)
-            result = img.attrs
+            attrs = img.attrs
+            repo_tags = attrs.get("RepoTags", [])
+            repo_tag = repo_tags[0] if repo_tags else f"{image}:{tag}"
+            repository, tag = (
+                repo_tag.rsplit(":", 1) if ":" in repo_tag else (image, tag)
+            )
+            created = attrs.get("Created", 0)
+            created_str = (
+                datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
+                if created
+                else "unknown"
+            )
+            size_bytes = attrs.get("Size", 0)
+            size_str = self._format_size(size_bytes) if size_bytes else "0B"
+            result = {
+                "repository": repository,
+                "tag": tag,
+                "id": (
+                    attrs.get("Id", "unknown")[7:19] if attrs.get("Id") else "unknown"
+                ),
+                "created": created_str,
+                "size": size_str,
+            }
             self.log_action("pull_image", params, result)
             return result
         except Exception as e:
@@ -252,7 +336,32 @@ class DockerManager(ContainerManagerBase):
         params = {"all": all}
         try:
             containers = self.client.containers.list(all=all)
-            result = [c.attrs for c in containers]
+            result = []
+            for c in containers:
+                attrs = c.attrs
+                ports = attrs.get("NetworkSettings", {}).get("Ports", {})
+                port_mappings = []
+                for container_port, host_ports in ports.items():
+                    if host_ports:
+                        for hp in host_ports:
+                            port_mappings.append(
+                                f"{hp.get('HostIp', '0.0.0.0')}:{hp.get('HostPort')}->{container_port}"
+                            )
+                created = attrs.get("Created", 0)
+                created_str = (
+                    datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
+                    if created
+                    else "unknown"
+                )
+                simplified = {
+                    "id": attrs.get("Id", "unknown")[7:19],
+                    "image": attrs.get("Config", {}).get("Image", "unknown"),
+                    "name": attrs.get("Name", "unknown").lstrip("/"),
+                    "status": attrs.get("State", {}).get("Status", "unknown"),
+                    "ports": ", ".join(port_mappings) if port_mappings else "none",
+                    "created": created_str,
+                }
+                result.append(simplified)
             self.log_action("list_containers", params, result)
             return result
         except Exception as e:
@@ -288,9 +397,33 @@ class DockerManager(ContainerManagerBase):
                 volumes=volumes,
                 environment=environment,
             )
-            result = (
-                container.attrs if detach else {"output": container.decode("utf-8")}
+            if not detach:
+                result = {"output": container.decode("utf-8") if container else ""}
+                self.log_action("run_container", params, result)
+                return result
+            attrs = container.attrs
+            ports = attrs.get("NetworkSettings", {}).get("Ports", {})
+            port_mappings = []
+            for container_port, host_ports in ports.items():
+                if host_ports:
+                    for hp in host_ports:
+                        port_mappings.append(
+                            f"{hp.get('HostIp', '0.0.0.0')}:{hp.get('HostPort')}->{container_port}"
+                        )
+            created = attrs.get("Created", 0)
+            created_str = (
+                datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
+                if created
+                else "unknown"
             )
+            result = {
+                "id": attrs.get("Id", "unknown")[7:19],
+                "image": attrs.get("Config", {}).get("Image", image),
+                "name": attrs.get("Name", name or "unknown").lstrip("/"),
+                "status": attrs.get("State", {}).get("Status", "unknown"),
+                "ports": ", ".join(port_mappings) if port_mappings else "none",
+                "created": created_str,
+            }
             self.log_action("run_container", params, result)
             return result
         except Exception as e:
@@ -326,7 +459,9 @@ class DockerManager(ContainerManagerBase):
         try:
             container = self.client.containers.get(container_id)
             logs = container.logs(tail=tail).decode("utf-8")
-            self.log_action("get_container_logs", params, logs)
+            self.log_action(
+                "get_container_logs", params, logs[:1000]
+            )  # Truncate for logging
             return logs
         except Exception as e:
             self.log_action("get_container_logs", params, error=e)
@@ -341,7 +476,8 @@ class DockerManager(ContainerManagerBase):
             exit_code, output = container.exec_run(command, detach=detach)
             result = {
                 "exit_code": exit_code,
-                "output": output.decode("utf-8") if output else None,
+                "output": output.decode("utf-8") if output and not detach else None,
+                "command": command,
             }
             self.log_action("exec_in_container", params, result)
             return result
@@ -353,7 +489,17 @@ class DockerManager(ContainerManagerBase):
         params = {}
         try:
             volumes = self.client.volumes.list()
-            result = {"volumes": [v.attrs for v in volumes]}
+            result = {
+                "volumes": [
+                    {
+                        "name": v.attrs.get("Name", "unknown"),
+                        "driver": v.attrs.get("Driver", "unknown"),
+                        "mountpoint": v.attrs.get("Mountpoint", "unknown"),
+                        "created": v.attrs.get("CreatedAt", "unknown"),
+                    }
+                    for v in volumes
+                ]
+            }
             self.log_action("list_volumes", params, result)
             return result
         except Exception as e:
@@ -364,7 +510,13 @@ class DockerManager(ContainerManagerBase):
         params = {"name": name}
         try:
             volume = self.client.volumes.create(name=name)
-            result = volume.attrs
+            attrs = volume.attrs
+            result = {
+                "name": attrs.get("Name", name),
+                "driver": attrs.get("Driver", "unknown"),
+                "mountpoint": attrs.get("Mountpoint", "unknown"),
+                "created": attrs.get("CreatedAt", "unknown"),
+            }
             self.log_action("create_volume", params, result)
             return result
         except Exception as e:
@@ -387,7 +539,28 @@ class DockerManager(ContainerManagerBase):
         params = {}
         try:
             networks = self.client.networks.list()
-            result = [net.attrs for net in networks]
+            result = []
+            for net in networks:
+                attrs = net.attrs
+                containers = len(attrs.get("Containers", {}))
+                created = attrs.get("Created", "unknown")
+                if isinstance(created, str):
+                    created_str = created
+                else:
+                    created_str = (
+                        datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
+                        if created
+                        else "unknown"
+                    )
+                simplified = {
+                    "id": attrs.get("Id", "unknown")[7:19],
+                    "name": attrs.get("Name", "unknown"),
+                    "driver": attrs.get("Driver", "unknown"),
+                    "scope": attrs.get("Scope", "unknown"),
+                    "containers": containers,
+                    "created": created_str,
+                }
+                result.append(simplified)
             self.log_action("list_networks", params, result)
             return result
         except Exception as e:
@@ -398,7 +571,23 @@ class DockerManager(ContainerManagerBase):
         params = {"name": name, "driver": driver}
         try:
             network = self.client.networks.create(name, driver=driver)
-            result = network.attrs
+            attrs = network.attrs
+            created = attrs.get("Created", "unknown")
+            if isinstance(created, str):
+                created_str = created
+            else:
+                created_str = (
+                    datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
+                    if created
+                    else "unknown"
+                )
+            result = {
+                "id": attrs.get("Id", "unknown")[7:19],
+                "name": attrs.get("Name", name),
+                "driver": attrs.get("Driver", driver),
+                "scope": attrs.get("Scope", "unknown"),
+                "created": created_str,
+            }
             self.log_action("create_network", params, result)
             return result
         except Exception as e:
@@ -503,7 +692,23 @@ class DockerManager(ContainerManagerBase):
         params = {}
         try:
             nodes = self.client.nodes.list()
-            result = [node.attrs for node in nodes]
+            result = []
+            for node in nodes:
+                attrs = node.attrs
+                spec = attrs.get("Spec", {})
+                status = attrs.get("Status", {})
+                created = attrs.get("CreatedAt", "unknown")
+                updated = attrs.get("UpdatedAt", "unknown")
+                simplified = {
+                    "id": attrs.get("ID", "unknown")[7:19],
+                    "hostname": spec.get("Name", "unknown"),
+                    "role": spec.get("Role", "unknown"),
+                    "status": status.get("State", "unknown"),
+                    "availability": spec.get("Availability", "unknown"),
+                    "created": created,
+                    "updated": updated,
+                }
+                result.append(simplified)
             self.log_action("list_nodes", params, result)
             return result
         except Exception as e:
@@ -514,7 +719,33 @@ class DockerManager(ContainerManagerBase):
         params = {}
         try:
             services = self.client.services.list()
-            result = [service.attrs for service in services]
+            result = []
+            for service in services:
+                attrs = service.attrs
+                spec = attrs.get("Spec", {})
+                endpoint = attrs.get("Endpoint", {})
+                ports = endpoint.get("Ports", [])
+                port_mappings = [
+                    f"{p.get('PublishedPort')}->{p.get('TargetPort')}/{p.get('Protocol')}"
+                    for p in ports
+                    if p.get("PublishedPort")
+                ]
+                created = attrs.get("CreatedAt", "unknown")
+                updated = attrs.get("UpdatedAt", "unknown")
+                simplified = {
+                    "id": attrs.get("ID", "unknown")[7:19],
+                    "name": spec.get("Name", "unknown"),
+                    "image": spec.get("TaskTemplate", {})
+                    .get("ContainerSpec", {})
+                    .get("Image", "unknown"),
+                    "replicas": spec.get("Mode", {})
+                    .get("Replicated", {})
+                    .get("Replicas", 0),
+                    "ports": ", ".join(port_mappings) if port_mappings else "none",
+                    "created": created,
+                    "updated": updated,
+                }
+                result.append(simplified)
             self.log_action("list_services", params, result)
             return result
         except Exception as e:
@@ -538,15 +769,46 @@ class DockerManager(ContainerManagerBase):
         }
         try:
             mode = {"mode": "replicated", "replicas": replicas}
-            target_ports = [docker.types.EndpointSpec(ports=ports)] if ports else None
+            endpoint_spec = None
+            if ports:
+                port_list = [
+                    {
+                        "Protocol": "tcp",
+                        "PublishedPort": int(host_port),
+                        "TargetPort": int(container_port.split("/")[0]),
+                    }
+                    for container_port, host_port in ports.items()
+                ]
+                endpoint_spec = docker.types.EndpointSpec(ports=port_list)
             service = self.client.services.create(
                 image,
                 name=name,
                 mode=mode,
                 mounts=mounts,
-                endpoint_spec=target_ports[0] if target_ports else None,
+                endpoint_spec=endpoint_spec,
             )
-            result = service.attrs
+            attrs = service.attrs
+            spec = attrs.get("Spec", {})
+            endpoint = attrs.get("Endpoint", {})
+            ports = endpoint.get("Ports", [])
+            port_mappings = [
+                f"{p.get('PublishedPort')}->{p.get('TargetPort')}/{p.get('Protocol')}"
+                for p in ports
+                if p.get("PublishedPort")
+            ]
+            created = attrs.get("CreatedAt", "unknown")
+            result = {
+                "id": attrs.get("ID", "unknown")[7:19],
+                "name": spec.get("Name", name),
+                "image": spec.get("TaskTemplate", {})
+                .get("ContainerSpec", {})
+                .get("Image", image),
+                "replicas": spec.get("Mode", {})
+                .get("Replicated", {})
+                .get("Replicas", replicas),
+                "ports": ", ".join(port_mappings) if port_mappings else "none",
+                "created": created,
+            }
             self.log_action("create_service", params, result)
             return result
         except Exception as e:
@@ -580,7 +842,14 @@ class PodmanManager(ContainerManagerBase):
     def get_version(self) -> Dict:
         params = {}
         try:
-            result = self.client.version()
+            version = self.client.version()
+            result = {
+                "version": version.get("Version", "unknown"),
+                "api_version": version.get("APIVersion", "unknown"),
+                "os": version.get("Os", "unknown"),
+                "arch": version.get("Arch", "unknown"),
+                "build_time": version.get("BuildTime", "unknown"),
+            }
             self.log_action("get_version", params, result)
             return result
         except Exception as e:
@@ -590,7 +859,17 @@ class PodmanManager(ContainerManagerBase):
     def get_info(self) -> Dict:
         params = {}
         try:
-            result = self.client.info()
+            info = self.client.info()
+            host = info.get("host", {})
+            result = {
+                "containers_total": info.get("store", {}).get("containers", 0),
+                "containers_running": host.get("runningContainers", 0),
+                "images": info.get("store", {}).get("images", 0),
+                "driver": host.get("graphDriverName", "unknown"),
+                "platform": f"{host.get('os', 'unknown')} {host.get('arch', 'unknown')}",
+                "memory_total": self._format_size(host.get("memTotal", 0)),
+                "swap_total": self._format_size(host.get("swapTotal", 0)),
+            }
             self.log_action("get_info", params, result)
             return result
         except Exception as e:
@@ -601,7 +880,34 @@ class PodmanManager(ContainerManagerBase):
         params = {}
         try:
             images = self.client.images.list()
-            result = [img.attrs for img in images]
+            result = []
+            for img in images:
+                attrs = img.attrs
+                repo_tags = attrs.get("Names", [])
+                repo_tag = repo_tags[0] if repo_tags else "<none>:<none>"
+                repository, tag = (
+                    repo_tag.rsplit(":", 1) if ":" in repo_tag else ("<none>", "<none>")
+                )
+                created = attrs.get("Created", 0)
+                created_str = (
+                    datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
+                    if created
+                    else "unknown"
+                )
+                size_bytes = attrs.get("Size", 0)
+                size_str = self._format_size(size_bytes) if size_bytes else "0B"
+                simplified = {
+                    "repository": repository,
+                    "tag": tag,
+                    "id": (
+                        attrs.get("Id", "unknown")[7:19]
+                        if attrs.get("Id")
+                        else "unknown"
+                    ),
+                    "created": created_str,
+                    "size": size_str,
+                }
+                result.append(simplified)
             self.log_action("list_images", params, result)
             return result
         except Exception as e:
@@ -614,7 +920,29 @@ class PodmanManager(ContainerManagerBase):
         params = {"image": image, "tag": tag, "platform": platform}
         try:
             img = self.client.images.pull(f"{image}:{tag}", platform=platform)
-            result = img[0].attrs if isinstance(img, list) else img.attrs
+            attrs = img[0].attrs if isinstance(img, list) else img.attrs
+            repo_tags = attrs.get("Names", [])
+            repo_tag = repo_tags[0] if repo_tags else f"{image}:{tag}"
+            repository, tag = (
+                repo_tag.rsplit(":", 1) if ":" in repo_tag else (image, tag)
+            )
+            created = attrs.get("Created", 0)
+            created_str = (
+                datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
+                if created
+                else "unknown"
+            )
+            size_bytes = attrs.get("Size", 0)
+            size_str = self._format_size(size_bytes) if size_bytes else "0B"
+            result = {
+                "repository": repository,
+                "tag": tag,
+                "id": (
+                    attrs.get("Id", "unknown")[7:19] if attrs.get("Id") else "unknown"
+                ),
+                "created": created_str,
+                "size": size_str,
+            }
             self.log_action("pull_image", params, result)
             return result
         except Exception as e:
@@ -636,7 +964,30 @@ class PodmanManager(ContainerManagerBase):
         params = {"all": all}
         try:
             containers = self.client.containers.list(all=all)
-            result = [c.attrs for c in containers]
+            result = []
+            for c in containers:
+                attrs = c.attrs
+                ports = attrs.get("Ports", [])
+                port_mappings = [
+                    f"{p.get('host_ip', '0.0.0.0')}:{p.get('host_port')}->{p.get('container_port')}/{p.get('protocol', 'tcp')}"
+                    for p in ports
+                    if p.get("host_port")
+                ]
+                created = attrs.get("Created", 0)
+                created_str = (
+                    datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
+                    if created
+                    else "unknown"
+                )
+                simplified = {
+                    "id": attrs.get("Id", "unknown")[7:19],
+                    "image": attrs.get("Image", "unknown"),
+                    "name": attrs.get("Names", ["unknown"])[0].lstrip("/"),
+                    "status": attrs.get("State", "unknown"),
+                    "ports": ", ".join(port_mappings) if port_mappings else "none",
+                    "created": created_str,
+                }
+                result.append(simplified)
             self.log_action("list_containers", params, result)
             return result
         except Exception as e:
@@ -672,9 +1023,31 @@ class PodmanManager(ContainerManagerBase):
                 volumes=volumes,
                 environment=environment,
             )
-            result = (
-                container.attrs if detach else {"output": container.decode("utf-8")}
+            if not detach:
+                result = {"output": container.decode("utf-8") if container else ""}
+                self.log_action("run_container", params, result)
+                return result
+            attrs = container.attrs
+            ports = attrs.get("Ports", [])
+            port_mappings = [
+                f"{p.get('host_ip', '0.0.0.0')}:{p.get('host_port')}->{p.get('container_port')}/{p.get('protocol', 'tcp')}"
+                for p in ports
+                if p.get("host_port")
+            ]
+            created = attrs.get("Created", 0)
+            created_str = (
+                datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
+                if created
+                else "unknown"
             )
+            result = {
+                "id": attrs.get("Id", "unknown")[7:19],
+                "image": attrs.get("Image", image),
+                "name": attrs.get("Names", [name or "unknown"])[0].lstrip("/"),
+                "status": attrs.get("State", "unknown"),
+                "ports": ", ".join(port_mappings) if port_mappings else "none",
+                "created": created_str,
+            }
             self.log_action("run_container", params, result)
             return result
         except Exception as e:
@@ -710,7 +1083,9 @@ class PodmanManager(ContainerManagerBase):
         try:
             container = self.client.containers.get(container_id)
             logs = container.logs(tail=tail).decode("utf-8")
-            self.log_action("get_container_logs", params, logs)
+            self.log_action(
+                "get_container_logs", params, logs[:1000]
+            )  # Truncate for logging
             return logs
         except Exception as e:
             self.log_action("get_container_logs", params, error=e)
@@ -725,7 +1100,8 @@ class PodmanManager(ContainerManagerBase):
             exit_code, output = container.exec_run(command, detach=detach)
             result = {
                 "exit_code": exit_code,
-                "output": output.decode("utf-8") if output else None,
+                "output": output.decode("utf-8") if output and not detach else None,
+                "command": command,
             }
             self.log_action("exec_in_container", params, result)
             return result
@@ -737,7 +1113,17 @@ class PodmanManager(ContainerManagerBase):
         params = {}
         try:
             volumes = self.client.volumes.list()
-            result = {"volumes": [v.attrs for v in volumes]}
+            result = {
+                "volumes": [
+                    {
+                        "name": v.attrs.get("Name", "unknown"),
+                        "driver": v.attrs.get("Driver", "unknown"),
+                        "mountpoint": v.attrs.get("Mountpoint", "unknown"),
+                        "created": v.attrs.get("CreatedAt", "unknown"),
+                    }
+                    for v in volumes
+                ]
+            }
             self.log_action("list_volumes", params, result)
             return result
         except Exception as e:
@@ -748,7 +1134,13 @@ class PodmanManager(ContainerManagerBase):
         params = {"name": name}
         try:
             volume = self.client.volumes.create(name=name)
-            result = volume.attrs
+            attrs = volume.attrs
+            result = {
+                "name": attrs.get("Name", name),
+                "driver": attrs.get("Driver", "unknown"),
+                "mountpoint": attrs.get("Mountpoint", "unknown"),
+                "created": attrs.get("CreatedAt", "unknown"),
+            }
             self.log_action("create_volume", params, result)
             return result
         except Exception as e:
@@ -771,7 +1163,28 @@ class PodmanManager(ContainerManagerBase):
         params = {}
         try:
             networks = self.client.networks.list()
-            result = [net.attrs for net in networks]
+            result = []
+            for net in networks:
+                attrs = net.attrs
+                containers = len(attrs.get("Containers", {}))
+                created = attrs.get("Created", "unknown")
+                if isinstance(created, str):
+                    created_str = created
+                else:
+                    created_str = (
+                        datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
+                        if created
+                        else "unknown"
+                    )
+                simplified = {
+                    "id": attrs.get("Id", "unknown")[7:19],
+                    "name": attrs.get("Name", "unknown"),
+                    "driver": attrs.get("Driver", "unknown"),
+                    "scope": attrs.get("Scope", "unknown"),
+                    "containers": containers,
+                    "created": created_str,
+                }
+                result.append(simplified)
             self.log_action("list_networks", params, result)
             return result
         except Exception as e:
@@ -782,7 +1195,23 @@ class PodmanManager(ContainerManagerBase):
         params = {"name": name, "driver": driver}
         try:
             network = self.client.networks.create(name, driver=driver)
-            result = network.attrs
+            attrs = network.attrs
+            created = attrs.get("Created", "unknown")
+            if isinstance(created, str):
+                created_str = created
+            else:
+                created_str = (
+                    datetime.fromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%S")
+                    if created
+                    else "unknown"
+                )
+            result = {
+                "id": attrs.get("Id", "unknown")[7:19],
+                "name": attrs.get("Name", name),
+                "driver": attrs.get("Driver", driver),
+                "scope": attrs.get("Scope", "unknown"),
+                "created": created_str,
+            }
             self.log_action("create_network", params, result)
             return result
         except Exception as e:
@@ -860,6 +1289,34 @@ class PodmanManager(ContainerManagerBase):
         except Exception as e:
             self.log_action("compose_logs", params, error=e)
             raise RuntimeError(f"Failed to compose logs: {str(e)}")
+
+    def init_swarm(self, advertise_addr: Optional[str] = None) -> Dict:
+        raise NotImplementedError("Swarm not supported in Podman")
+
+    def leave_swarm(self, force: bool = False) -> Dict:
+        raise NotImplementedError("Swarm not supported in Podman")
+
+    def list_nodes(self) -> List[Dict]:
+        raise NotImplementedError("Swarm not supported in Podman")
+
+    def list_services(self) -> List[Dict]:
+        raise NotImplementedError("Swarm not supported in Podman")
+
+    def create_service(
+        self,
+        name: str,
+        image: str,
+        replicas: int = 1,
+        ports: Optional[Dict[str, str]] = None,
+        mounts: Optional[List[str]] = None,
+    ) -> Dict:
+        raise NotImplementedError("Swarm not supported in Podman")
+
+    def remove_service(self, service_id: str) -> Dict:
+        raise NotImplementedError("Swarm not supported in Podman")
+
+
+# The rest of the file (create_manager, usage, container_manager) remains unchanged
 
 
 def create_manager(
