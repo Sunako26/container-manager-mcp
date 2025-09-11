@@ -39,6 +39,29 @@ def to_boolean(string):
         raise ValueError(f"Cannot convert '{string}' to boolean")
 
 
+def parse_image_string(image: str, default_tag: str = "latest") -> tuple[str, str]:
+    """
+    Parse a container image string into image and tag components.
+
+    Args:
+        image: Input image string (e.g., 'registry.arpa/ubuntu/ubuntu:latest' or 'nginx')
+        default_tag: Fallback tag if none is specified (default: 'latest')
+
+    Returns:
+        Tuple of (image, tag) where image includes registry/repository, tag is the tag or default_tag
+    """
+    # Split on the last ':' to separate image and tag
+    if ":" in image:
+        parts = image.rsplit(":", 1)
+        image_name, tag = parts[0], parts[1]
+        # Ensure tag is valid (not a port or malformed)
+        if "/" in tag or not tag:
+            # If tag contains '/' or is empty, assume no tag was provided
+            return image, default_tag
+        return image_name, tag
+    return image, default_tag
+
+
 environment_silent = os.environ.get("SILENT", False)
 environment_log_file = os.environ.get("LOG_FILE", None)
 environment_container_manager_type = os.environ.get("CONTAINER_MANAGER_TYPE", None)
@@ -171,8 +194,13 @@ async def list_images(
     tags={"container_management"},
 )
 async def pull_image(
-    image: str = Field(description="Image name to pull"),
-    tag: str = Field(description="Image tag", default="latest"),
+    image: str = Field(
+        description="Image name to pull (e.g., nginx, registry.arpa/ubuntu/ubuntu:latest)."
+    ),
+    tag: str = Field(
+        description="Image tag (overridden if tag is included in image string)",
+        default="latest",
+    ),
     platform: Optional[str] = Field(
         description="Platform (e.g., linux/amd64)", default=None
     ),
@@ -191,12 +219,14 @@ async def pull_image(
     ),
 ) -> Dict:
     logger = logging.getLogger("ContainerManager")
+    # Parse image string to separate image and tag
+    parsed_image, parsed_tag = parse_image_string(image, tag)
     logger.debug(
-        f"Pulling image {image}:{tag} for {manager_type}, silent: {silent}, log_file: {log_file}"
+        f"Pulling image {parsed_image}:{parsed_tag} for {manager_type}, silent: {silent}, log_file: {log_file}"
     )
     try:
         manager = create_manager(manager_type, silent, log_file)
-        return manager.pull_image(image, tag, platform)
+        return manager.pull_image(parsed_image, parsed_tag, platform)
     except Exception as e:
         logger.error(f"Failed to pull image: {str(e)}")
         raise RuntimeError(f"Failed to pull image: {str(e)}")
