@@ -1065,10 +1065,12 @@ class PodmanManager(ContainerManagerBase):
         is_wsl = self._is_wsl()
         socket_candidates = []
         if system == "Windows" and not is_wsl:
-            if self._is_podman_machine_running():
-                socket_candidates.append("npipe:////./pipe/docker_engine")
+            if not self._is_podman_machine_running():
+                raise RuntimeError("Podman Machine is not running on Windows system")
             socket_candidates.extend(
                 [
+                    "unix:///run/podman/podman.sock",
+                    "npipe:////./pipe/docker_engine",
                     "unix:///mnt/wsl/podman-sockets/podman-machine-default/podman-user.sock",
                     "unix:///mnt/wsl/podman-sockets/podman-machine-default/podman-root.sock",
                 ]
@@ -1079,14 +1081,14 @@ class PodmanManager(ContainerManagerBase):
                 [
                     f"unix:///run/user/{uid}/podman/podman.sock",
                     "unix:///run/podman/podman.sock",
+                    "unix:///mnt/wsl/podman-sockets/podman-machine-default/podman-user.sock",
+                    "unix:///mnt/wsl/podman-sockets/podman-machine-default/podman-root.sock",
                 ]
             )
         for url in socket_candidates:
-            if url.startswith("unix://") and (system == "Linux" or is_wsl):
-                socket_path = url.replace("unix://", "")
-                if not os.path.exists(socket_path):
-                    self.logger.debug(f"Socket {socket_path} does not exist")
-                    continue
+            if not os.path.exists(url):
+                self.logger.debug(f"Socket {url} does not exist")
+                continue
             client = self._try_connect(url)
             if client:
                 return url
@@ -1712,19 +1714,9 @@ def create_manager(
         manager_type = os.environ.get("CONTAINER_MANAGER_TYPE", None)
     if manager_type is None:
         if is_app_installed("podman"):
-            try:
-                test_client = PodmanClient()
-                test_client.close()
-                manager_type = "podman"
-            except Exception:
-                pass
+            manager_type = "podman"
         if is_app_installed("docker"):
-            try:
-                test_client = docker.from_env()
-                test_client.close()
-                manager_type = "docker"
-            except Exception:
-                pass
+            manager_type = "docker"
     if manager_type is None:
         raise ValueError(
             "No supported container manager detected. Set CONTAINER_MANAGER_TYPE or install Docker/Podman."
