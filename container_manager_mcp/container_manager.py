@@ -1086,9 +1086,6 @@ class PodmanManager(ContainerManagerBase):
                 ]
             )
         for url in socket_candidates:
-            if not os.path.exists(url):
-                self.logger.debug(f"Socket {url} does not exist")
-                continue
             client = self._try_connect(url)
             if client:
                 return url
