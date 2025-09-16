@@ -510,14 +510,17 @@ class DockerManager(ContainerManagerBase):
                 self.log_action("run_container", params, result)
                 return result
             attrs = container.attrs
-            ports = attrs.get("NetworkSettings", {}).get("Ports", {})
             port_mappings = []
-            for container_port, host_ports in ports.items():
-                if host_ports:
-                    for hp in host_ports:
-                        port_mappings.append(
-                            f"{hp.get('HostIp', '0.0.0.0')}:{hp.get('HostPort')}->{container_port}"
-                        )
+            if ports:  # Check if ports is not None
+                network_settings = attrs.get("NetworkSettings", {})
+                container_ports = network_settings.get("Ports", {})
+                if container_ports:  # Check if Ports dictionary is not empty
+                    for container_port, host_ports in container_ports.items():
+                        if host_ports:  # Check if host_ports is not None or empty
+                            for hp in host_ports:
+                                port_mappings.append(
+                                    f"{hp.get('HostIp', '0.0.0.0')}:{hp.get('HostPort')}->{container_port}"
+                                )
             created = attrs.get("Created", None)
             created_str = self._parse_timestamp(created)
             result = {
@@ -1069,6 +1072,7 @@ class PodmanManager(ContainerManagerBase):
                 raise RuntimeError("Podman Machine is not running on Windows system")
             socket_candidates.extend(
                 [
+                    "tcp://127.0.0.1:8080",
                     "unix:///run/podman/podman.sock",
                     "npipe:////./pipe/docker_engine",
                     "unix:///mnt/wsl/podman-sockets/podman-machine-default/podman-user.sock",
@@ -1430,12 +1434,15 @@ class PodmanManager(ContainerManagerBase):
                 self.log_action("run_container", params, result)
                 return result
             attrs = container.attrs
-            ports = attrs.get("Ports", [])
-            port_mappings = [
-                f"{p.get('host_ip', '0.0.0.0')}:{p.get('host_port')}->{p.get('container_port')}/{p.get('protocol', 'tcp')}"
-                for p in ports
-                if p.get("host_port")
-            ]
+            port_mappings = []
+            if ports:  # Check if ports is not None
+                container_ports = attrs.get("Ports", [])
+                if container_ports:  # Check if Ports list is not empty
+                    port_mappings = [
+                        f"{p.get('host_ip', '0.0.0.0')}:{p.get('host_port')}->{p.get('container_port')}/{p.get('protocol', 'tcp')}"
+                        for p in container_ports
+                        if p.get("host_port")
+                    ]
             created = attrs.get("Created", None)
             created_str = self._parse_timestamp(created)
             result = {
