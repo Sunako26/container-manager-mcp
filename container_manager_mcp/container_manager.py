@@ -1060,9 +1060,11 @@ class PodmanManager(ContainerManagerBase):
 
     def _autodetect_podman_url(self) -> Optional[str]:
         """Autodetect the appropriate Podman socket URL based on platform."""
-        base_url = os.environ.get("PODMAN_BASE_URL")
+        base_url = os.environ.get("CONTAINER_MANAGER_PODMAN_BASE_URL")
         if base_url:
-            self.logger.info(f"Using PODMAN_BASE_URL from environment: {base_url}")
+            self.logger.info(
+                f"Using CONTAINER_MANAGER_PODMAN_BASE_URL from environment: {base_url}"
+            )
             return base_url
         system = platform.system()
         is_wsl = self._is_wsl()
